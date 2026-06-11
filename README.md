@@ -22,7 +22,7 @@ Pacific coast mangroves across four countries:
 - Colombia (Pacific coast only)
 - Ecuador
 
-Peru and Chile excluded — no Pacific mangroves due to cold Humboldt Current.
+Chile excluded — no Pacific mangroves due to cold Humboldt Current.
 
 ---
 
@@ -135,6 +135,7 @@ install.packages(c("shiny", "leaflet", "terra", "raster", "leaflet.extras", "dpl
 
 ## Pending Next Steps
 
+- [ ] Small amount of mangroves in Peru, need to add
 - [ ] Integrate Human Modification Index (Kennedy et al. 2025) to resolve grassland ambiguity
 - [ ] Confirm Pacific-only scope for Colombia/Ecuador/ Costa Rica/Panama 
 - [ ] Summary statistics table per country for workshop 
