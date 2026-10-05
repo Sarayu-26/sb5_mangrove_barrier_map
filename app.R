@@ -29,6 +29,11 @@ raw_rasters   <- lapply(raw_rasters,   function(r) project(r, "EPSG:4326"))
 slope_rasters <- lapply(slope_rasters, function(r) project(r, "EPSG:4326"))
 lc_rasters    <- lapply(lc_rasters,    function(r) project(r, "EPSG:4326"))
 
+# Aggregate to 300m for faster rendering
+raw_rasters   <- lapply(raw_rasters,   function(r) aggregate(r, fact=3, fun="modal"))
+slope_rasters <- lapply(slope_rasters, function(r) aggregate(r, fact=3, fun="modal"))
+lc_rasters    <- lapply(lc_rasters,    function(r) aggregate(r, fact=3, fun="modal"))
+
 # Extract mangrove pixels (WorldCover class 95) from raw rasters
 # These show where mangroves actually are
 mangrove_rasters <- lapply(raw_rasters, function(r) {
