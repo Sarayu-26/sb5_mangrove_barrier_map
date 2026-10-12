@@ -8,37 +8,58 @@ library(sf)
 
 # ── 1. Load & prepare rasters ─────────────────────────────────────────────────
 
-countries <- c("costa_rica", "panama", "colombia", "ecuador")
+countries <- c("costa_rica", "panama", "colombia", "ecuador", "peru")
 country_labels <- c(
   costa_rica = "Costa Rica",
   panama     = "Panama",
   colombia   = "Colombia (Pacific)",
-  ecuador    = "Ecuador"
+  ecuador    = "Ecuador",
+  peru       = "Peru"
 )
 
 # Load
-raw_rasters   <- lapply(setNames(countries, countries), function(c)
-  rast(file.path("input", paste0("worldcover_raw_5km_", c, ".tif"))))
-slope_rasters <- lapply(setNames(countries, countries), function(c)
-  rast(file.path("input", paste0("mangrove_barrier_5km_slope_", c, ".tif"))))
-lc_rasters    <- lapply(setNames(countries, countries), function(c)
-  rast(file.path("input", paste0("mangrove_barrier_5km_lc_", c, ".tif"))))
+# Load all tifs — handles tiled exports (multiple 000 files) automatically
+raw_rasters <- lapply(setNames(countries, countries), function(c) {
+  files <- list.files("input", pattern=paste0("worldcover_raw_5km_", c), full.names=TRUE)
+  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
+})
+
+slope_rasters <- lapply(setNames(countries, countries), function(c) {
+  files <- list.files("input", pattern=paste0("mangrove_barrier_5km_slope_", c), full.names=TRUE)
+  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
+})
+
+lc_rasters <- lapply(setNames(countries, countries), function(c) {
+  files <- list.files("input", pattern=paste0("mangrove_barrier_5km_lc_", c), full.names=TRUE)
+  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
+})
+
+mangrove_extent_rasters <- lapply(setNames(countries, countries), function(c) {
+  files <- list.files("input", pattern=paste0("mangrove_extent_", c), full.names=TRUE)
+  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
+})
 
 # Reproject to WGS84
-raw_rasters   <- lapply(raw_rasters,   function(r) project(r, "EPSG:4326"))
-slope_rasters <- lapply(slope_rasters, function(r) project(r, "EPSG:4326"))
-lc_rasters    <- lapply(lc_rasters,    function(r) project(r, "EPSG:4326"))
+raw_rasters             <- lapply(raw_rasters,             function(r) project(r, "EPSG:4326"))
+slope_rasters           <- lapply(slope_rasters,           function(r) project(r, "EPSG:4326"))
+lc_rasters              <- lapply(lc_rasters,              function(r) project(r, "EPSG:4326"))
+mangrove_extent_rasters <- lapply(mangrove_extent_rasters, function(r) project(r, "EPSG:4326"))
 
-# Aggregate to 300m for faster rendering
-raw_rasters   <- lapply(raw_rasters,   function(r) aggregate(r, fact=3, fun="modal"))
-slope_rasters <- lapply(slope_rasters, function(r) aggregate(r, fact=3, fun="modal"))
-lc_rasters    <- lapply(lc_rasters,    function(r) aggregate(r, fact=3, fun="modal"))
+# Aggregate to 500m for memory efficiency
+raw_rasters             <- lapply(raw_rasters,             function(r) aggregate(r, fact=5, fun="modal"))
+slope_rasters           <- lapply(slope_rasters,           function(r) aggregate(r, fact=5, fun="modal"))
+lc_rasters              <- lapply(lc_rasters,              function(r) aggregate(r, fact=5, fun="modal"))
+mangrove_extent_rasters <- lapply(mangrove_extent_rasters, function(r) aggregate(r, fact=5, fun="modal"))
 
-# Extract mangrove pixels (WorldCover class 95) from raw rasters
-# These show where mangroves actually are
+# Extract mangrove pixels from raw rasters (WorldCover class 95)
 mangrove_rasters <- lapply(raw_rasters, function(r) {
   m <- ifel(r == 95, 1, NA)
   as(m, "Raster")
+})
+
+# Convert mangrove extent to Raster for leaflet
+mangrove_extent_rl <- lapply(mangrove_extent_rasters, function(r) {
+  as(ifel(r == 1, 1, NA), "Raster")
 })
 
 # Convert slope and lc to Raster format for leaflet
