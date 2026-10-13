@@ -174,7 +174,7 @@ ui <- fluidPage(
       div(
         h1("Mangrove Migration Barriers — Eastern Tropical Pacific"),
         div(class="subtitle",
-            "Costa Rica · Panama · Colombia · Ecuador  |  5km inland buffer · ESA WorldCover 2021 · GMW v3 2020")
+            "Costa Rica · Panama · Colombia · Ecuador· Peru |  5km inland buffer · ESA WorldCover 2021 · GMW v3 2020")
       ),
       span(class="wip-badge", "WORK IN PROGRESS")
   ),
@@ -293,7 +293,7 @@ server <- function(input, output, session) {
   # ── Map 1: Land Cover ──
   output$map_lc <- renderLeaflet({
     leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
-      addProviderTiles("CartoDB.DarkMatter") %>%
+      addTiles() %>%
       setView(lng=-80, lat=4, zoom=5)
   })
   
@@ -335,7 +335,7 @@ server <- function(input, output, session) {
   # ── Map 2: Slope ──
   output$map_slope <- renderLeaflet({
     m <- leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
-      addProviderTiles("CartoDB.DarkMatter") %>%
+      addTiles() %>%
       setView(lng=-80, lat=4, zoom=5)
     
     # Barrier layer
