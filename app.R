@@ -5,6 +5,7 @@ library(raster)
 library(leaflet.extras)
 library(dplyr)
 library(sf)
+library(jsonlite)
 
 # ── 1. Load & prepare rasters ─────────────────────────────────────────────────
 
@@ -17,8 +18,7 @@ country_labels <- c(
   peru       = "Peru"
 )
 
-# Load
-# Load all tifs — handles tiled exports (multiple 000 files) automatically
+# Load all tifs — handles tiled exports automatically
 raw_rasters <- lapply(setNames(countries, countries), function(c) {
   files <- list.files("input", pattern=paste0("worldcover_raw_5km_", c), full.names=TRUE)
   if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
@@ -174,14 +174,14 @@ ui <- fluidPage(
       div(
         h1("Mangrove Migration Barriers — Eastern Tropical Pacific"),
         div(class="subtitle",
-            "Costa Rica · Panama · Colombia · Ecuador· Peru |  5km inland buffer · ESA WorldCover 2021 · GMW v3 2020")
+            "Costa Rica · Panama · Colombia · Ecuador · Peru  |  5km inland buffer · ESA WorldCover 2021 · GMW v3 2020")
       ),
       span(class="wip-badge", "WORK IN PROGRESS")
   ),
   
   tabsetPanel(id="main_tabs",
               
-              # ── Tab 1: Land Cover ──────────────────────────────────────────────────────
+              # ── Tab 1: Land Cover ──
               tabPanel("5km Land Cover",
                        div(style="position:relative;",
                            div(class="sidebar-panel",
@@ -208,7 +208,11 @@ ui <- fluidPage(
                                  )
                                }),
                                
-                               actionButton("reset_btn","Reset to defaults",class="reset-btn")
+                               actionButton("reset_btn","Reset to defaults",class="reset-btn"),
+                               
+                               div(class="section-label",style="margin-top:16px", "Draw Annotations"),
+                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
+                                 "Use the toolbar on the map to draw polygons or rectangles marking areas of interest. Coordinates print to the R console.")
                            ),
                            div(class="map-panel",
                                leafletOutput("map_lc", height="calc(100vh - 90px)")
@@ -216,7 +220,7 @@ ui <- fluidPage(
                        )
               ),
               
-              # ── Tab 2: Slope ───────────────────────────────────────────────────────────
+              # ── Tab 2: Slope ──
               tabPanel("5km + Slope",
                        div(style="position:relative;",
                            div(class="sidebar-panel",
@@ -232,6 +236,10 @@ ui <- fluidPage(
                                div(style="font-family:'DM Mono',monospace;font-size:12px;color:#4ade80;margin-bottom:10px",
                                    "Current: 5°"),
                                
+                               div(class="section-label",style="margin-top:16px","Draw Annotations"),
+                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
+                                 "Use the toolbar on the map to draw polygons or rectangles marking areas of interest."),
+                               
                                div(class="section-label",style="margin-top:16px","Note"),
                                p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
                                  "Pre-computed slope + land cover layer. Use Tab 1 dropdowns to explore land cover reclassification.")
@@ -242,7 +250,7 @@ ui <- fluidPage(
                        )
               ),
               
-              # ── Tab 3: Statistics ──────────────────────────────────────────────────────
+              # ── Tab 3: Statistics ──
               tabPanel("Statistics",
                        div(class="stats-wrap",
                            h2(style="font-size:16px;font-weight:600;color:#4ade80;margin-bottom:4px",
@@ -252,7 +260,7 @@ ui <- fluidPage(
                            
                            div(class="note-box",
                                tags$strong("How to use:"),
-                               " Section 1 shows raw land cover in the buffer, which drives the barrier scores.
+                               " Section 1 shows raw land cover in the buffer — what's driving the barrier scores.
             Section 2 shows the barrier summary using the current Tab 1 classification.
             Change dropdowns in Tab 1 and return here to see updated totals."
                            ),
@@ -262,7 +270,7 @@ ui <- fluidPage(
                            div(class="note-box",
                                tags$strong("Known limitation:"),
                                " Grassland (#30) classified as Medium barrier — may include cleared cattle pasture (High barrier).
-            Need to incorporate Human Modification Index."
+            Human Modification Index integration pending."
                            )
                        )
               )
@@ -272,6 +280,62 @@ ui <- fluidPage(
 # ── 5. Server ─────────────────────────────────────────────────────────────────
 
 server <- function(input, output, session) {
+  
+  # ── Annotation persistence ──────────────────────────────────────────────────
+  ANNOTATIONS_FILE <- "input/annotations.csv"
+  
+  load_annotations <- function() {
+    if (file.exists(ANNOTATIONS_FILE)) {
+      read.csv(ANNOTATIONS_FILE, stringsAsFactors=FALSE)
+    } else {
+      data.frame(map=character(), type=character(), coords_json=character(),
+                 timestamp=character(), stringsAsFactors=FALSE)
+    }
+  }
+  
+  save_annotation <- function(map_id, type, coords) {
+    ann <- load_annotations()
+    new_row <- data.frame(
+      map         = map_id,
+      type        = type,
+      coords_json = jsonlite::toJSON(coords),
+      timestamp   = as.character(Sys.time()),
+      stringsAsFactors = FALSE
+    )
+    write.csv(rbind(ann, new_row), ANNOTATIONS_FILE, row.names=FALSE)
+  }
+  
+  draw_saved_annotations <- function(proxy, map_id) {
+    ann <- load_annotations()
+    ann <- ann[ann$map == map_id, ]
+    if (nrow(ann) == 0) return()
+    for (i in seq_len(nrow(ann))) {
+      coords <- jsonlite::fromJSON(ann$coords_json[i])
+      tryCatch({
+        if (ann$type[i] %in% c("Polygon", "Rectangle")) {
+          ring <- coords[[1]]
+          lngs <- sapply(ring, `[[`, 1)
+          lats <- sapply(ring, `[[`, 2)
+          proxy %>% addPolygons(
+            lng         = lngs,
+            lat         = lats,
+            group       = "drawn",
+            color       = "#facc15",
+            weight      = 2,
+            fillOpacity = 0.1,
+            layerId     = paste0("saved_", map_id, "_", i)
+          )
+        } else if (ann$type[i] == "Point") {
+          proxy %>% addMarkers(
+            lng     = coords[[1]],
+            lat     = coords[[2]],
+            group   = "drawn",
+            layerId = paste0("saved_", map_id, "_", i)
+          )
+        }
+      }, error = function(e) NULL)
+    }
+  }
   
   # Current classification from dropdowns
   current_cls <- reactive({
@@ -294,7 +358,21 @@ server <- function(input, output, session) {
   output$map_lc <- renderLeaflet({
     leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
       addTiles() %>%
-      setView(lng=-80, lat=4, zoom=5)
+      setView(lng=-80, lat=4, zoom=5) %>%
+      addDrawToolbar(
+        targetGroup        = "drawn",
+        polylineOptions    = FALSE,
+        circleOptions      = FALSE,
+        circleMarkerOptions = FALSE,
+        polygonOptions     = drawPolygonOptions(),
+        rectangleOptions   = drawRectangleOptions(),
+        markerOptions      = drawMarkerOptions(),
+        editOptions        = editToolbarOptions(selectedPathOptions = selectedPathOptions())
+      ) %>%
+      addLayersControl(
+        overlayGroups = "drawn",
+        options       = layersControlOptions(collapsed = FALSE)
+      )
   })
   
   observe({
@@ -330,13 +408,39 @@ server <- function(input, output, session) {
       title    = "Migration Barrier",
       opacity  = 0.9
     )
+    draw_saved_annotations(proxy, "map_lc")
+  })
+  
+  # Save drawn shapes on map 1
+  observeEvent(input$map_lc_draw_new_feature, {
+    feature <- input$map_lc_draw_new_feature
+    save_annotation("map_lc", feature$geometry$type, feature$geometry$coordinates)
+    cat("Annotation saved — LC map:", feature$geometry$type, "\n")
+  })
+  
+  observeEvent(input$map_lc_draw_deleted_features, {
+    cat("Shape deleted from LC map (not removed from saved file — clear annotations.csv to reset)\n")
   })
   
   # ── Map 2: Slope ──
   output$map_slope <- renderLeaflet({
     m <- leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
       addTiles() %>%
-      setView(lng=-80, lat=4, zoom=5)
+      setView(lng=-80, lat=4, zoom=5) %>%
+      addDrawToolbar(
+        targetGroup        = "drawn",
+        polylineOptions    = FALSE,
+        circleOptions      = FALSE,
+        circleMarkerOptions = FALSE,
+        polygonOptions     = drawPolygonOptions(),
+        rectangleOptions   = drawRectangleOptions(),
+        markerOptions      = drawMarkerOptions(),
+        editOptions        = editToolbarOptions(selectedPathOptions = selectedPathOptions())
+      ) %>%
+      addLayersControl(
+        overlayGroups = "drawn",
+        options       = layersControlOptions(collapsed = FALSE)
+      )
     
     # Barrier layer
     for (country in countries) {
@@ -365,6 +469,26 @@ server <- function(input, output, session) {
       title    = "Migration Barrier",
       opacity  = 0.9
     )
+  })
+  
+  # Save drawn shapes on map 2
+  observeEvent(input$map_slope_draw_new_feature, {
+    feature <- input$map_slope_draw_new_feature
+    save_annotation("map_slope", feature$geometry$type, feature$geometry$coordinates)
+    cat("Annotation saved — slope map:", feature$geometry$type, "\n")
+  })
+  
+  observeEvent(input$map_slope_draw_deleted_features, {
+    cat("Shape deleted from slope map (not removed from saved file — clear annotations.csv to reset)\n")
+  })
+  
+  # Re-draw saved slope annotations once map tab is first visited
+  slope_annotations_loaded <- reactiveVal(FALSE)
+  observeEvent(input$main_tabs, {
+    if (input$main_tabs == "5km + Slope" && !slope_annotations_loaded()) {
+      slope_annotations_loaded(TRUE)
+      draw_saved_annotations(leafletProxy("map_slope"), "map_slope")
+    }
   })
   
   # ── Stats ──
