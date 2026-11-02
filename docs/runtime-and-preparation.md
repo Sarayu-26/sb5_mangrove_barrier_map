@@ -27,3 +27,17 @@ Spatial tests cover valid polygons, holes, invalid geometry, known-area sums, pe
 Measured on the development Mac: application source/startup approximately 1.2 seconds; startup plus one overview encoding approximately 315 MiB peak child RSS; a 2-degree Costa Rica-area render approximately 0.52 seconds; polygon statistics for that region approximately 0.93 seconds. These are local observations, not cloud capacity or concurrency guarantees.
 
 The dated repository review records the original findings before these changes; use this document for the current implementation status.
+
+## Independent GMW overlay experiment
+
+The green map overlay now uses official GMW v3.0 **2020** extent, credited to Bunting et al. (2022), CC BY 4.0: https://zenodo.org/records/6894273. This intentionally matches the documented study vintage; it is not the newer v4.1 product or a live feed from the GMW website.
+
+Download `gmw_v3_2020_gtiff.zip` from that record, then run `Rscript --vanilla scripts/prepare_gmw.R /path/to/gmw_v3_2020_gtiff.zip`. The builder verifies the published archive MD5 and retains complete tiles intersecting 96°W–68°W, 20°S–12°N, including the entire Galápagos archipelago. Coverage is independent of the uploaded land-cover TIFFs. Neighboring coastlines and Caribbean mangroves inside those tiles may also appear; the overlay is not a country mask or proof of Pacific-only analysis coverage. Source rasters and an overview are bundled under `data/gmw` for offline runtime use. The original land-cover products do not need rebuilding.
+
+The GMW checkbox controls only the display overlay. It is rendered above both barrier modes, with any-presence aggregation to preserve narrow features at small scales. This can exaggerate their displayed width. All polygon/country statistics and CSV exports still use WorldCover and remain labeled accordingly. GMW coverage beyond the supplied rasters does not add land cover, slope data, or a new migration buffer.
+
+Run `Rscript --vanilla tests/gmw.R`, the existing spatial/server tests, and then regenerate the deployment manifest. Changes are isolated on `codex/prepare-posit-raster-performance`; revert the overlay changes to discard this experiment without deleting earlier branch work.
+
+Validation of this experiment: spatial, GMW and Shiny test suites passed. Browser checks confirmed the overlay at Galápagos zoom, toggle-off revealing the land-cover footprint, and persistence when switching barrier modes. The prepared land-cover footprint starts at approximately 91°W; GMW includes mangroves west of that boundary. Bundled GMW rasters total approximately 13 MB. Local testing used a project-local `leaflet.extras` installation: `Rscript --vanilla -e '.libPaths(c(".Rlibrary",.libPaths())); shiny::runApp()'`.
+
+The full manifest generator encountered unavailable CRAN metadata in this environment. Since this change adds no package dependencies, the existing package records were retained and the manifest file list/checksums refreshed directly. Cloud deployment was not performed.

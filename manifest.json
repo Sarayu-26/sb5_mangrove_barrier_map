@@ -1958,7 +1958,7 @@
   },
   "files": {
     "app.R": {
-      "checksum": "07249684c722fd99b6d4911e5844740f"
+      "checksum": "2b795aa9cf343c33862bcad805c7bc12"
     },
     "data/prepared/cells-0001.rds": {
       "checksum": "339c732f3f0f85b0851f7c09e49b9fca"
@@ -2456,10 +2456,217 @@
       "checksum": "50031ec314631dfb35350b5161eaf81e"
     },
     "R/server.R": {
-      "checksum": "08e0f5c8ceefedfdfeda08665d5913c4"
+      "checksum": "c43a385d13462dcc1432946c88177763"
     },
     "R/spatial.R": {
       "checksum": "2ffe84ac5c174dee0aa0ee8c50a7c2f8"
+    },
+    "R/gmw.R": {
+      "checksum": "665fc47e7e1a22dcc316ad0c2bc4dd81"
+    },
+    "data/gmw/GMW_N00W081_2020_v3.tif": {
+      "checksum": "26e9817d2c9895b6c9c103bade769049"
+    },
+    "data/gmw/GMW_N00W090_2020_v3.tif": {
+      "checksum": "00e9d078ca0b3102492952f454b65eb0"
+    },
+    "data/gmw/GMW_N00W091_2020_v3.tif": {
+      "checksum": "71fbfff52106092a6feb76b2551bc43d"
+    },
+    "data/gmw/GMW_N00W092_2020_v3.tif": {
+      "checksum": "e4e1c23ea3636947b62f16f3de982355"
+    },
+    "data/gmw/GMW_N01W080_2020_v3.tif": {
+      "checksum": "37810cba56a10793e896569418114639"
+    },
+    "data/gmw/GMW_N01W081_2020_v3.tif": {
+      "checksum": "9c130572b9607cf9e7c48ced8eec1ef2"
+    },
+    "data/gmw/GMW_N01W091_2020_v3.tif": {
+      "checksum": "351950bd1d505d972e260102eeb285f2"
+    },
+    "data/gmw/GMW_N01W092_2020_v3.tif": {
+      "checksum": "5ee37df6450c1ccd7c2023711ea09c71"
+    },
+    "data/gmw/GMW_N02W079_2020_v3.tif": {
+      "checksum": "22bb2bf84c60f9f765bef214c9b54d96"
+    },
+    "data/gmw/GMW_N02W080_2020_v3.tif": {
+      "checksum": "265fa73c3f870db190abf897e2062f65"
+    },
+    "data/gmw/GMW_N03W078_2020_v3.tif": {
+      "checksum": "252d90bdee3a7c47ebd03d453b832fe7"
+    },
+    "data/gmw/GMW_N03W079_2020_v3.tif": {
+      "checksum": "cf24680d548e7daa9a1aebb27dafb096"
+    },
+    "data/gmw/GMW_N04W078_2020_v3.tif": {
+      "checksum": "3fcad82fe04cac4962d804e3bdf523d7"
+    },
+    "data/gmw/GMW_N05W078_2020_v3.tif": {
+      "checksum": "231de3ffd33318ccb57d28fd5c9a5a0b"
+    },
+    "data/gmw/GMW_N06W078_2020_v3.tif": {
+      "checksum": "585691e17040d819807a80658f7f6b0f"
+    },
+    "data/gmw/GMW_N07W078_2020_v3.tif": {
+      "checksum": "d124dcb627deaa5ae0cf13aa33ad3384"
+    },
+    "data/gmw/GMW_N08W077_2020_v3.tif": {
+      "checksum": "713da8f926218e072300575d9a9f89b0"
+    },
+    "data/gmw/GMW_N08W078_2020_v3.tif": {
+      "checksum": "c4e3b460a2bc3be0b00c8f6de7cb83b2"
+    },
+    "data/gmw/GMW_N08W079_2020_v3.tif": {
+      "checksum": "4daab8ae1fa087ffb0e2fcc37d96f316"
+    },
+    "data/gmw/GMW_N08W081_2020_v3.tif": {
+      "checksum": "21cd928e6fa9d504d3c2498c6292cb66"
+    },
+    "data/gmw/GMW_N08W082_2020_v3.tif": {
+      "checksum": "2b4d37794f927a32fa927c13dad8cff8"
+    },
+    "data/gmw/GMW_N09W077_2020_v3.tif": {
+      "checksum": "9781e6ec8c91c689746da63e38a125f1"
+    },
+    "data/gmw/GMW_N09W078_2020_v3.tif": {
+      "checksum": "76ed3b943f25534cd4b46bd6f42aff49"
+    },
+    "data/gmw/GMW_N09W079_2020_v3.tif": {
+      "checksum": "e0fa608e30911b8f39526543d437a744"
+    },
+    "data/gmw/GMW_N09W080_2020_v3.tif": {
+      "checksum": "631d8b0b7da6e13426c85ce7273529c1"
+    },
+    "data/gmw/GMW_N09W081_2020_v3.tif": {
+      "checksum": "5dc7731227536913d96454769d506aa2"
+    },
+    "data/gmw/GMW_N09W082_2020_v3.tif": {
+      "checksum": "c9eb2aca3af964ba26f637be2bf032f9"
+    },
+    "data/gmw/GMW_N09W083_2020_v3.tif": {
+      "checksum": "ffe88287f2cad86f748eaa9d29b18560"
+    },
+    "data/gmw/GMW_N09W084_2020_v3.tif": {
+      "checksum": "861dcaa38751db0f1578cded1914e10e"
+    },
+    "data/gmw/GMW_N10W072_2020_v3.tif": {
+      "checksum": "f031b472142835d0e420bc09524fb5b3"
+    },
+    "data/gmw/GMW_N10W073_2020_v3.tif": {
+      "checksum": "d11ce9a37f6656c14f45ad5cba47694c"
+    },
+    "data/gmw/GMW_N10W076_2020_v3.tif": {
+      "checksum": "a4258287b40ed214f2f92171c93134ee"
+    },
+    "data/gmw/GMW_N10W077_2020_v3.tif": {
+      "checksum": "3f9f78d3e5fe4d19ad9272121c657a61"
+    },
+    "data/gmw/GMW_N10W078_2020_v3.tif": {
+      "checksum": "03910bdf00b26815dacc78baa5eab8ea"
+    },
+    "data/gmw/GMW_N10W079_2020_v3.tif": {
+      "checksum": "7469df3fe646ff8829fee4efb89bc780"
+    },
+    "data/gmw/GMW_N10W080_2020_v3.tif": {
+      "checksum": "5f4eca4990b7968ae8adeec0b2d8fb9a"
+    },
+    "data/gmw/GMW_N10W082_2020_v3.tif": {
+      "checksum": "7f6d42c686267d59f03675ee75651acc"
+    },
+    "data/gmw/GMW_N10W083_2020_v3.tif": {
+      "checksum": "d843684ba0bf19cc1c9314a9f46739f2"
+    },
+    "data/gmw/GMW_N10W084_2020_v3.tif": {
+      "checksum": "4b45ef8442b19e69f5e492872b4833bc"
+    },
+    "data/gmw/GMW_N10W085_2020_v3.tif": {
+      "checksum": "923935f23ba56de7f9452d566dfb2fac"
+    },
+    "data/gmw/GMW_N10W086_2020_v3.tif": {
+      "checksum": "cf5e5062ab581427d953846713c1e020"
+    },
+    "data/gmw/GMW_N11W069_2020_v3.tif": {
+      "checksum": "3f42a2376f2809e43862bd9f2c66b6c1"
+    },
+    "data/gmw/GMW_N11W072_2020_v3.tif": {
+      "checksum": "cbd1996fec4402f30164177c56aadabc"
+    },
+    "data/gmw/GMW_N11W073_2020_v3.tif": {
+      "checksum": "306aa7ef4fd011300b6afa0ef0fffa1f"
+    },
+    "data/gmw/GMW_N11W075_2020_v3.tif": {
+      "checksum": "e4657fb2ef7ccb81a557ebc538fe061a"
+    },
+    "data/gmw/GMW_N11W076_2020_v3.tif": {
+      "checksum": "36d629fb6e0e780ffc1f0d7019ea9f4c"
+    },
+    "data/gmw/GMW_N11W085_2020_v3.tif": {
+      "checksum": "2d5c2e0d85dc7f41d06143ccd5112c87"
+    },
+    "data/gmw/GMW_N11W086_2020_v3.tif": {
+      "checksum": "a434e3f773131c515e7a4ae9d6c2652f"
+    },
+    "data/gmw/GMW_N12W069_2020_v3.tif": {
+      "checksum": "732c8a021a9152ba70f9c9c9edf67c5b"
+    },
+    "data/gmw/GMW_N12W070_2020_v3.tif": {
+      "checksum": "f1430d66b1febf0c111edfded6baffc6"
+    },
+    "data/gmw/GMW_N12W071_2020_v3.tif": {
+      "checksum": "c4ae6e01f0bdbf661d85672a2185058c"
+    },
+    "data/gmw/GMW_N12W072_2020_v3.tif": {
+      "checksum": "0031f45d5891d310b8433a68ac98c0eb"
+    },
+    "data/gmw/GMW_N12W073_2020_v3.tif": {
+      "checksum": "0e1303a7cc8930cc0751a6c46fcf7c4f"
+    },
+    "data/gmw/GMW_N12W074_2020_v3.tif": {
+      "checksum": "ea4057103c692eef5bbd6b8ac60fb888"
+    },
+    "data/gmw/GMW_N12W075_2020_v3.tif": {
+      "checksum": "07d800476271cc2687b84a7656a0c83e"
+    },
+    "data/gmw/GMW_N12W084_2020_v3.tif": {
+      "checksum": "458d31453c345ce20be36ec88d081e49"
+    },
+    "data/gmw/GMW_N12W086_2020_v3.tif": {
+      "checksum": "40da773fcde5c9f88d4596b5e6602e4c"
+    },
+    "data/gmw/GMW_N12W087_2020_v3.tif": {
+      "checksum": "5e4273f149eedddefea4b93e4e5a0efb"
+    },
+    "data/gmw/GMW_S01W091_2020_v3.tif": {
+      "checksum": "d67f1d94da91aaa8ef88de84f9e11e19"
+    },
+    "data/gmw/GMW_S01W092_2020_v3.tif": {
+      "checksum": "ff4521ce907243f8f85fb849dd415c0b"
+    },
+    "data/gmw/GMW_S02W080_2020_v3.tif": {
+      "checksum": "004afb09a63db511c4b6fb560dc509ca"
+    },
+    "data/gmw/GMW_S02W081_2020_v3.tif": {
+      "checksum": "674046da0441c0b8bffc0e5340d07234"
+    },
+    "data/gmw/GMW_S03W080_2020_v3.tif": {
+      "checksum": "12bb438a441b1a2afb4073a7a2dbf995"
+    },
+    "data/gmw/GMW_S03W081_2020_v3.tif": {
+      "checksum": "a85c050ebe7f4b5ddc9d60c1a706c277"
+    },
+    "data/gmw/GMW_S04W082_2020_v3.tif": {
+      "checksum": "988882c12f67ea8393dd9dd7398b098e"
+    },
+    "data/gmw/GMW_S05W081_2020_v3.tif": {
+      "checksum": "1ae66de379b1571a2db55f05360b66e8"
+    },
+    "data/gmw/index.rds": {
+      "checksum": "8eeafbabed731b7b09bff26bad798215"
+    },
+    "data/gmw/overview.tif": {
+      "checksum": "afab194b54fb276fd8f038d6a1065f23"
     }
   },
   "users": null
