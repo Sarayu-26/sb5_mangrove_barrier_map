@@ -3,6 +3,8 @@ library(leaflet)
 library(leaflet.extras)
 source("R/spatial.R", local=TRUE)
 products <- load_products()
+source("R/gmw.R", local=TRUE)
+gmw <- load_gmw()
 country_labels <- COUNTRIES
 countries <- names(COUNTRIES)
 barrier_pal <- colorFactor(c("#4ade80", "#facc15", "#f87171"), domain=c(1,2,3), na.color="transparent")
@@ -126,6 +128,7 @@ ui <- fluidPage(
           use within a ", tags$strong("5 km inland buffer"), " of current mangrove extent using ESA WorldCover
           satellite data, then assigns each pixel a barrier score based on how likely that land use is to
           prevent migration."),
+                           p("The independent GMW v3 2020 overlay includes the Galápagos. It does not expand the land-cover analysis footprint; statistics and exports remain based on the supplied WorldCover cells."),
                            p("The fixed slope reference includes the upstream terrain rule (>5°). Adjustable scores and statistics describe land cover only; changing scores does not alter the slope reference."),
                            
                            tags$h3("Barrier classification"),
@@ -141,7 +144,7 @@ ui <- fluidPage(
                                         tags$tr(tags$td(style="color:#f87171","High"),   tags$td("High barrier"),
                                                 tags$td("Cropland, Built-up area")),
                                         tags$tr(tags$td(style="color:#166534","—"),      tags$td("Mangrove (excluded)"),
-                                                tags$td("ESA class 95 — shown separately as current extent"))
+                                                tags$td("ESA class 95 — excluded from barrier scores and retained in WorldCover statistics"))
                                       )
                            ),
                            p(style="font-size:11px;color:#7a9a7a;",
@@ -179,7 +182,7 @@ ui <- fluidPage(
                            tags$h3("Data sources"),
                            div(class="cite",
                                div("ESA WorldCover 2021 v200 (10m) · ", tags$a(href="https://worldcover2021.esa.int","worldcover2021.esa.int")),
-                               div("Global Mangrove Watch v3.0 (2020) · ", tags$a(href="https://www.jaxa.jp/projects/sat/alos2/","JAXA / Aberystwyth University")),
+                               div("Global Mangrove Watch v3.0 (2020) · ", tags$a(href="https://zenodo.org/records/6894273","Bunting et al. (2022) · CC BY 4.0")),
                                div("SRTM 30m Digital Elevation Model · NASA / USGS"),
                                div("Coastal buffer and slope composite processed in Google Earth Engine · supplied grid approximately 100 m · display detail adapts to zoom")
                            ),
@@ -206,8 +209,10 @@ ui <- fluidPage(
                            div(class="sidebar-panel",
                                
                                radioButtons("map_mode", "Map layer", choices=c("Adjustable land cover"="landcover", "Fixed slope reference"="slope"), selected="landcover"),
+                               checkboxInput("show_gmw", "Show GMW extent (2020)", TRUE),
+                               p(style="font-size:11px;color:#7a9a7a", "GMW overlay extends beyond the input coverage. Statistics and CSV exports use WorldCover, not GMW."),
                                div(class="section-label", "Legend"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#166534"), "Mangroves (WorldCover 2021)"),
+                               div(class="legend-item", div(class="legend-dot",style="background:#166534"), GMW_LABEL),
                                div(class="legend-item", div(class="legend-dot",style="background:#4ade80"), "Low barrier"),
                                div(class="legend-item", div(class="legend-dot",style="background:#facc15"), "Medium barrier"),
                                div(class="legend-item", div(class="legend-dot",style="background:#f87171"), "High barrier"),

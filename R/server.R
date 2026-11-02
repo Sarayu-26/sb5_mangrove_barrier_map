@@ -21,7 +21,7 @@ server <- function(input, output, session) {
                      polygonOptions=drawPolygonOptions(shapeOptions=drawShapeOptions(color="#facc15",fillOpacity=0.1)),
                      editOptions=editToolbarOptions()) |>
       addLegend(position="bottomright",colors=c("#166534",unname(BARRIER_COLORS)),
-                labels=c("Mangroves (WorldCover)","Low","Medium","High"), title="Migration barriers")
+                labels=c(GMW_LABEL,"Low","Medium","High"), title="Migration barriers")
   })
   viewport <- debounce(reactive(list(bounds=input$map_slope_bounds,zoom=input$map_slope_zoom)),500)
   display <- reactive({
@@ -42,9 +42,25 @@ server <- function(input, output, session) {
     }
     layer <- terra::ifel(layer==0,NA,layer)
     leafletProxy("map_slope",session) |>
-      clearImages() |>
-      addRasterImage(layer,colors=barrier_pal,opacity=0.8,layerId="barrier",method="ngb",maxBytes=4*1024*1024) |>
-      addRasterImage(r[["mangrove"]],colors=mangrove_pal,opacity=1,layerId="mangrove",method="ngb",maxBytes=4*1024*1024)
+      removeImage("barrier") |>
+      addRasterImage(layer,colors=barrier_pal,opacity=0.8,layerId="barrier",method="ngb",maxBytes=4*1024*1024)
+  })
+
+  gmw_display <- reactive({
+    view <- viewport()
+    if (is.null(view$bounds) || is.null(view$zoom) || view$zoom<7) return(gmw$overview)
+    b <- view$bounds
+    bounds <- c(b$west,b$east,max(-85,b$south),min(85,b$north))
+    if (any(!is.finite(bounds)) || bounds[2]<=bounds[1] || bounds[4]<=bounds[3]) return(gmw$overview)
+    render_gmw(gmw,bounds)
+  })
+  observe({
+    proxy <- leafletProxy("map_slope",session) |> removeImage("gmw")
+    if (isTRUE(input$show_gmw)) {
+      addRasterImage(proxy,gmw_display(),colors=mangrove_pal,opacity=1,layerId="gmw",
+                     method="ngb",maxBytes=4*1024*1024,
+                     options=gridOptions(zIndex=450))
+    }
   })
 
   # Session-local features keyed by Leaflet IDs; edits and deletes keep selection consistent.
