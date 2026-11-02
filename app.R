@@ -97,6 +97,14 @@ ui <- fluidPage(
     .status-bar { display:flex; gap:10px; align-items:center; margin-top:28px;
                   padding:10px 14px; background:#162019; border:1px solid #2a3d2e; border-radius:6px; }
     @media (max-width: 700px) { .sidebar-panel { width:100%; float:none; height:auto; max-height:40vh; } .map-panel { margin-left:0; } .stats-grid { grid-template-columns:1fr; } .about-wrap { padding:20px; } }
+    .project-credit { text-align:center; color:#a8bda8; font-size:13px; line-height:1.8; margin:16px 0 12px; }
+    .project-credit a { color:#4ade80; font-weight:600; white-space:nowrap; }
+    .credit-divider { color:#7a9a7a; padding:0 9px; }
+    .project-badges { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:24px; }
+    .project-badge { display:inline-flex; overflow:hidden; border-radius:6px; font-size:11px; font-weight:600; line-height:1.5; }
+    .project-badge-label { background:#2a3d2e; color:#e2ead4; padding:6px 9px; }
+    .project-badge-value { background:#365b43; color:#fff; padding:6px 9px; }
+    .project-badge-value.beta { background:#a65e2e; }
     .status-dot { width:8px; height:8px; border-radius:50%; background:#facc15; flex-shrink:0; }
   "))),
   
@@ -119,6 +127,21 @@ ui <- fluidPage(
                            p(style="font-family:'DM Mono',monospace;font-size:11px;color:#7a9a7a;margin-bottom:24px",
                              "Conservation International · SB5 Climate Adaptation · October 2026"),
                            
+                           div(class="project-credit",
+                               "Created by ", tags$strong("Sarayu Ramnath"),
+                               span(class="credit-divider", "|"),
+                               tags$a(href="https://github.com/Sarayu-26/sb5_mangrove_barrier_map", target="_blank", rel="noopener noreferrer", "GitHub"),
+                               span(class="credit-divider", "|"),
+                               tags$a(href="https://sarayu-26.github.io/", target="_blank", rel="noopener noreferrer", "Personal website")
+                           ),
+                           div(class="project-badges",
+                               span(class="project-badge", span(class="project-badge-label", "app"), span(class="project-badge-value beta", "beta")),
+                               span(class="project-badge", span(class="project-badge-label", "countries"), span(class="project-badge-value", length(COUNTRIES))),
+                               span(class="project-badge", span(class="project-badge-label", "coastal buffer"), span(class="project-badge-value", "5 km")),
+                               span(class="project-badge", span(class="project-badge-label", "land cover"), span(class="project-badge-value", "WorldCover 2021")),
+                               span(class="project-badge", span(class="project-badge-label", "mangrove extent"), span(class="project-badge-value", "GMW 2020"))
+                           ),
+
                            tags$h3("What this tool shows"),
                            p("Mangroves are highly productive coastal ecosystems that provide storm protection, carbon storage,
           and fisheries habitat. Under sea-level rise, mangroves can survive by migrating landward — but only
