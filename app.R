@@ -6,6 +6,8 @@ library(leaflet.extras)
 library(dplyr)
 library(sf)
 library(jsonlite)
+library(png)
+library(rnaturalearth)
 
 # ── 1. Load & prepare rasters ─────────────────────────────────────────────────
 
@@ -18,53 +20,43 @@ country_labels <- c(
   peru       = "Peru"
 )
 
-# Load all tifs — handles tiled exports automatically
-raw_rasters <- lapply(setNames(countries, countries), function(c) {
-  files <- list.files("input", pattern=paste0("worldcover_raw_5km_", c), full.names=TRUE)
-  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
-})
+# Country boundary polygons for accurate masking (loaded once at startup)
+ne_names <- c("Costa Rica", "Panama", "Colombia", "Ecuador", "Peru")
+country_polys <- setNames(lapply(ne_names, function(nm) {
+  sf_poly <- ne_countries(country = nm, scale = "medium", returnclass = "sf")
+  terra::vect(sf_poly)
+}), countries)
 
-slope_rasters <- lapply(setNames(countries, countries), function(c) {
-  files <- list.files("input", pattern=paste0("mangrove_barrier_5km_slope_", c), full.names=TRUE)
-  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
-})
+load_full <- function(prefix, agg_fun="modal") {
+  files <- sort(list.files("input", pattern=paste0("^", prefix, "-[0-9]"), full.names=TRUE))
+  if (length(files) == 0) stop(paste("No tiles found for:", prefix))
+  message("  Found ", length(files), " tiles for ", prefix)
+  r <- if (length(files) > 1) mosaic(sprc(lapply(files, rast)), fun="first") else rast(files[1])
+  r[r == 0] <- NA
+  r <- project(r, "EPSG:4326")
+  aggregate(r, fact=5, fun=agg_fun)
+}
 
-lc_rasters <- lapply(setNames(countries, countries), function(c) {
-  files <- list.files("input", pattern=paste0("mangrove_barrier_5km_lc_", c), full.names=TRUE)
-  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
-})
+# Load raw tiles once at full resolution, derive all products from it
+load_full_hires <- function(prefix) {
+  files <- sort(list.files("input", pattern=paste0("^", prefix, "-[0-9]"), full.names=TRUE))
+  if (length(files) == 0) stop(paste("No tiles found for:", prefix))
+  message("  Found ", length(files), " tiles for ", prefix)
+  r <- if (length(files) > 1) mosaic(sprc(lapply(files, rast)), fun="first") else rast(files[1])
+  r[r == 0] <- NA
+  project(r, "EPSG:4326")
+}
 
-mangrove_extent_rasters <- lapply(setNames(countries, countries), function(c) {
-  files <- list.files("input", pattern=paste0("mangrove_extent_", c), full.names=TRUE)
-  if (length(files) > 1) do.call(merge, lapply(files, rast)) else rast(files[1])
-})
+message("Loading rasters...")
+raw_hires    <- load_full_hires("worldcover_raw_5km_full")
+slope_hires  <- load_full_hires("mangrove_barrier_5km_slope_full")
 
-# Reproject to WGS84
-raw_rasters             <- lapply(raw_rasters,             function(r) project(r, "EPSG:4326"))
-slope_rasters           <- lapply(slope_rasters,           function(r) project(r, "EPSG:4326"))
-lc_rasters              <- lapply(lc_rasters,              function(r) project(r, "EPSG:4326"))
-mangrove_extent_rasters <- lapply(mangrove_extent_rasters, function(r) project(r, "EPSG:4326"))
+# Aggregate to ~500m for barrier map display and polygon classification
+raw_mosaic   <- aggregate(raw_hires,   fact=5, fun="modal")
+slope_mosaic <- aggregate(slope_hires, fact=5, fun="modal")
 
-# Aggregate to 500m for memory efficiency
-raw_rasters             <- lapply(raw_rasters,             function(r) aggregate(r, fact=5, fun="modal"))
-slope_rasters           <- lapply(slope_rasters,           function(r) aggregate(r, fact=5, fun="modal"))
-lc_rasters              <- lapply(lc_rasters,              function(r) aggregate(r, fact=5, fun="modal"))
-mangrove_extent_rasters <- lapply(mangrove_extent_rasters, function(r) aggregate(r, fact=5, fun="modal"))
-
-# Extract mangrove pixels from raw rasters (WorldCover class 95)
-mangrove_rasters <- lapply(raw_rasters, function(r) {
-  m <- ifel(r == 95, 1, NA)
-  as(m, "Raster")
-})
-
-# Convert mangrove extent to Raster for leaflet
-mangrove_extent_rl <- lapply(mangrove_extent_rasters, function(r) {
-  as(ifel(r == 1, 1, NA), "Raster")
-})
-
-# Convert slope and lc to Raster format for leaflet
-slope_rasters_rl <- lapply(slope_rasters, function(r) as(r, "Raster"))
-lc_rasters_rl    <- lapply(lc_rasters,    function(r) as(r, "Raster"))
+# Free slope hires immediately — only needed for slope_mosaic
+rm(slope_hires); gc()
 
 # ── 2. Constants ──────────────────────────────────────────────────────────────
 
@@ -84,7 +76,7 @@ DEFAULTS <- c(`10`=1,`20`=1,`30`=2,`40`=3,`50`=3,
               `60`=1,`80`=2,`90`=1,`95`=0,`100`=1)
 
 BARRIER_COLORS <- c("1"="#4ade80","2"="#facc15","3"="#f87171")
-PIXEL_AREA_HA  <- (100*100)/10000
+PIXEL_AREA_HA  <- (500*500)/10000   # after fact=5 aggregation, pixels are ~500m
 
 barrier_pal <- colorFactor(
   palette  = c("#4ade80","#facc15","#f87171"),
@@ -98,17 +90,142 @@ mangrove_pal <- colorFactor(
   na.color = "transparent"
 )
 
-# ── 3. Helper: reclassify ─────────────────────────────────────────────────────
+# ── 3. Helpers ────────────────────────────────────────────────────────────────
 
 reclassify_raster <- function(r, cls_map) {
   from <- as.numeric(names(cls_map))
   to   <- as.numeric(cls_map)
   rcl  <- matrix(c(from, to), ncol=2)
-  result <- classify(r, rcl, others=NA)
-  as(result, "Raster")
+  classify(r, rcl, others=NA)
 }
 
-# ── 4. UI ─────────────────────────────────────────────────────────────────────
+# Pre-render a terra SpatRaster to a cached Raster object for leaflet
+# Cache lives in memory keyed by a string tag; reclassified layers use
+# the serialised cls_map as their key so the map only redraws on real changes.
+raster_cache <- new.env(hash=TRUE, parent=emptyenv())
+
+get_cached_raster <- function(key, make_fn) {
+  if (!exists(key, envir=raster_cache)) {
+    assign(key, make_fn(), envir=raster_cache)
+  }
+  get(key, envir=raster_cache)
+}
+
+# No aggregation — mangroves are thin coastal strips, any aggregation loses them
+mangrove_mosaic <- ifel(raw_hires == 95, 1, NA)
+
+# Free raw_hires — mangrove_mosaic and raw_mosaic are all we need
+rm(raw_hires); gc()
+
+# Pre-cache mosaicked rasters for leaflet (static, built once at startup)
+message("Pre-caching mosaicked rasters...")
+slope_rl    <- get_cached_raster("slope_mosaic",    function() as(slope_mosaic,    "Raster"))
+mangrove_rl <- get_cached_raster("mangrove_mosaic", function() as(mangrove_mosaic, "Raster"))
+
+message("Startup complete.")
+
+# ── 4. Annotation persistence ─────────────────────────────────────────────────
+
+ANNOTATIONS_FILE <- "input/annotations.csv"
+
+load_annotations <- function() {
+  if (file.exists(ANNOTATIONS_FILE)) {
+    read.csv(ANNOTATIONS_FILE, stringsAsFactors=FALSE)
+  } else {
+    data.frame(id=character(), map=character(), type=character(),
+               coords_json=character(), label=character(),
+               timestamp=character(), stringsAsFactors=FALSE)
+  }
+}
+
+save_annotation <- function(map_id, type, coords, label="") {
+  ann <- load_annotations()
+  new_row <- data.frame(
+    id          = as.character(Sys.time()),
+    map         = map_id,
+    type        = type,
+    coords_json = jsonlite::toJSON(coords),
+    label       = label,
+    timestamp   = as.character(Sys.time()),
+    stringsAsFactors = FALSE
+  )
+  write.csv(rbind(ann, new_row), ANNOTATIONS_FILE, row.names=FALSE)
+}
+
+draw_saved_annotations <- function(proxy, map_id) {
+  ann <- load_annotations()
+  ann <- ann[ann$map == map_id, ]
+  if (nrow(ann) == 0) return()
+  for (i in seq_len(nrow(ann))) {
+    coords <- tryCatch(jsonlite::fromJSON(ann$coords_json[i]), error=function(e) NULL)
+    if (is.null(coords)) next
+    tryCatch({
+      if (ann$type[i] %in% c("Polygon", "Rectangle")) {
+        ring <- coords[[1]]
+        lngs <- sapply(ring, `[[`, 1)
+        lats <- sapply(ring, `[[`, 2)
+        proxy %>% addPolygons(
+          lng         = lngs,
+          lat         = lats,
+          group       = "drawn",
+          color       = "#facc15",
+          weight      = 2,
+          fillOpacity = 0.1,
+          layerId     = paste0("saved_", map_id, "_", i)
+        )
+      }
+    }, error = function(e) NULL)
+  }
+}
+
+# Extract pixel values inside a drawn polygon from a SpatRaster
+poly_to_vect <- function(coords_json) {
+  coords <- tryCatch(jsonlite::fromJSON(coords_json, simplifyVector=FALSE), error=function(e) NULL)
+  if (is.null(coords)) return(NULL)
+  ring <- tryCatch({ r <- coords; while (is.list(r) && is.list(r[[1]])) r <- r[[1]]; r }, error=function(e) NULL)
+  if (is.null(ring) || length(ring) < 3) return(NULL)
+  lngs <- tryCatch(sapply(ring, function(p) p[[1]]), error=function(e) NULL)
+  lats <- tryCatch(sapply(ring, function(p) p[[2]]), error=function(e) NULL)
+  if (is.null(lngs) || is.null(lats)) return(NULL)
+  poly_sf <- tryCatch(sf::st_sfc(sf::st_polygon(list(cbind(lngs, lats))), crs=4326), error=function(e) NULL)
+  if (is.null(poly_sf)) return(NULL)
+  tryCatch(terra::vect(poly_sf), error=function(e) NULL)
+}
+
+extract_mangrove_ha <- function(coords_json) {
+  poly_sv <- poly_to_vect(coords_json)
+  if (is.null(poly_sv)) return(NA)
+  extracted <- tryCatch(terra::extract(mangrove_mosaic, poly_sv), error=function(e) NULL)
+  if (is.null(extracted) || ncol(extracted) < 2) return(0)
+  pixels <- sum(extracted[,2] == 1, na.rm=TRUE)
+  round(pixels * PIXEL_AREA_HA)
+}
+
+extract_polygon_stats <- function(terra_raster, coords_json, cls_map) {
+  poly_sv   <- poly_to_vect(coords_json)
+  if (is.null(poly_sv)) return(NULL)
+  extracted <- tryCatch(terra::extract(terra_raster, poly_sv), error=function(e) NULL)
+  if (is.null(extracted) || ncol(extracted) < 2) return(NULL)
+  vals <- tryCatch(extracted[,2], error=function(e) NULL)
+  if (is.null(vals)) return(NULL)
+  vals <- vals[!is.na(vals) & vals != 0 & vals != 95]
+  if (length(vals) == 0) return(NULL)
+  lc_df <- as.data.frame(table(vals)) %>%
+    rename(code=vals, pixels=Freq) %>%
+    mutate(
+      code    = as.numeric(as.character(code)),
+      name    = LC_CLASSES[as.character(code)],
+      area_ha = round(pixels * PIXEL_AREA_HA),
+      pct     = round(pixels / sum(pixels) * 100, 1),
+      score   = cls_map[as.character(code)],
+      barrier = c("1"="Low","2"="Medium","3"="High")[as.character(score)]
+    ) %>%
+    filter(!is.na(name)) %>%
+    arrange(desc(pixels))
+  lc_df
+}
+
+# ── 5. UI ─────────────────────────────────────────────────────────────────────
 
 ui <- fluidPage(
   tags$head(tags$style(HTML("
@@ -147,6 +264,12 @@ ui <- fluidPage(
     .reset-btn { width:100%; margin-top:10px; padding:6px; background:none;
                  border:1px solid #2a3d2e; color:#7a9a7a; font-size:11px;
                  border-radius:4px; cursor:pointer; }
+    .dl-btn { width:100%; margin-top:6px; padding:6px; background:rgba(74,222,128,0.08);
+              border:1px solid rgba(74,222,128,0.25); color:#4ade80; font-size:11px;
+              border-radius:4px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+    .dl-btn:disabled { opacity:0.35; cursor:default; }
+    .poly-stats { background:#1a2b1e; border:1px solid #2a3d2e; border-radius:5px;
+                  padding:10px; margin-top:8px; font-size:11px; }
     .stats-wrap { padding:24px; overflow-y:auto; height:calc(100vh - 90px); }
     .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
     .stats-card { background:#162019; border:1px solid #2a3d2e; border-radius:7px; padding:14px; }
@@ -167,33 +290,149 @@ ui <- fluidPage(
     .divider { border-top:1px solid #2a3d2e; margin:12px 0; }
     .leaflet-container { background:#0e1a14 !important; }
     .form-group { margin-bottom:0 !important; }
+    .about-wrap { padding:32px 48px; max-width:860px; overflow-y:auto; height:calc(100vh - 90px); }
+    .about-wrap h2 { font-size:22px; font-weight:600; color:#4ade80; margin-bottom:4px; }
+    .about-wrap h3 { font-size:12px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase;
+                     color:#7a9a7a; margin-top:28px; margin-bottom:10px; border-bottom:1px solid #2a3d2e;
+                     padding-bottom:6px; }
+    .about-wrap p { font-size:13px; line-height:1.75; color:#c8d8c0; margin-bottom:12px; }
+    .about-wrap a { color:#4ade80; text-decoration:none; }
+    .about-wrap a:hover { text-decoration:underline; }
+    .about-tbl { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px; }
+    .about-tbl th { text-align:left; font-size:10px; color:#7a9a7a; padding:4px 10px;
+                    border-bottom:1px solid #2a3d2e; font-family:'DM Mono',monospace; font-weight:400; }
+    .about-tbl td { padding:7px 10px; border-bottom:1px solid #1e2e22; color:#c8d8c0; }
+    .about-tbl tr:last-child td { border-bottom:none; }
+    .step-row { display:flex; gap:14px; margin-bottom:12px; align-items:flex-start; }
+    .step-num { font-family:'DM Mono',monospace; font-size:11px; color:#4ade80;
+                background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2);
+                border-radius:3px; padding:2px 7px; flex-shrink:0; margin-top:2px; }
+    .step-text { font-size:13px; line-height:1.6; color:#c8d8c0; }
+    .step-text strong { color:#e2ead4; }
+    .cite { font-family:'DM Mono',monospace; font-size:10px; color:#7a9a7a; line-height:1.8; }
+    .status-bar { display:flex; gap:10px; align-items:center; margin-top:28px;
+                  padding:10px 14px; background:#162019; border:1px solid #2a3d2e; border-radius:6px; }
+    .status-dot { width:8px; height:8px; border-radius:50%; background:#facc15; flex-shrink:0; }
   "))),
   
-  # Header
   div(class="header-bar",
       div(
         h1("Mangrove Migration Barriers — Eastern Tropical Pacific"),
         div(class="subtitle",
-            "Costa Rica · Panama · Colombia · Ecuador · Peru  |  5km inland buffer · ESA WorldCover 2021 · GMW v3 2020")
+            "Costa Rica · Panama · Colombia · Ecuador · Peru  |  5km coastal buffer · ESA WorldCover 2021 · GMW v3 2020")
       ),
       span(class="wip-badge", "WORK IN PROGRESS")
   ),
   
   tabsetPanel(id="main_tabs",
               
-              # ── Tab 1: Land Cover ──
-              tabPanel("5km Land Cover",
+              # ── Tab 0: About ──────────────────────────────────────────────────────────
+              tabPanel("About",
+                       div(class="about-wrap",
+                           
+                           h2("Mangrove Migration Barriers — Eastern Tropical Pacific"),
+                           p(style="font-family:'DM Mono',monospace;font-size:11px;color:#7a9a7a;margin-bottom:24px",
+                             "Conservation International · SB5 Climate Adaptation · October 2026"),
+                           
+                           tags$h3("What this tool shows"),
+                           p("Mangroves are highly productive coastal ecosystems that provide storm protection, carbon storage,
+          and fisheries habitat. Under sea-level rise, mangroves can survive by migrating landward — but only
+          if suitable land is available inland."),
+                           p("This tool maps ", tags$strong("potential barriers to landward mangrove migration"), " along the
+          Eastern Tropical Pacific coast (Costa Rica, Panama, Colombia, Ecuador, Peru). It classifies land
+          use within a ", tags$strong("5 km inland buffer"), " of current mangrove extent using ESA WorldCover
+          satellite data, then assigns each pixel a barrier score based on how likely that land use is to
+          prevent migration."),
+                           p("Terrain steepness is included: land rising more than 5° behind the coast is always classified
+          as High barrier regardless of land cover, since mangroves cannot migrate uphill."),
+                           
+                           tags$h3("Barrier classification"),
+                           tags$table(class="about-tbl",
+                                      tags$thead(tags$tr(
+                                        tags$th("Score"), tags$th("Label"), tags$th("Land cover classes (default)")
+                                      )),
+                                      tags$tbody(
+                                        tags$tr(tags$td(style="color:#4ade80","Low"),    tags$td("Low barrier"),
+                                                tags$td("Tree cover, Shrubland, Bare / sparse veg, Herbaceous wetland, Moss / lichen")),
+                                        tags$tr(tags$td(style="color:#facc15","Medium"), tags$td("Medium barrier"),
+                                                tags$td("Grassland, Permanent water")),
+                                        tags$tr(tags$td(style="color:#f87171","High"),   tags$td("High barrier"),
+                                                tags$td("Cropland, Built-up area")),
+                                        tags$tr(tags$td(style="color:#166534","—"),      tags$td("Mangrove (excluded)"),
+                                                tags$td("ESA class 95 — shown separately as current extent"))
+                                      )
+                           ),
+                           p(style="font-size:11px;color:#7a9a7a;",
+                             "Default scores reflect expert judgment and can be adjusted in real time using the dropdowns
+           on the 5km Land Cover tab. Reclassify grassland as High barrier if cattle ranching is the
+           dominant land use in your area of interest."),
+                           
+                           tags$h3("How to use it"),
+                           div(class="step-row",
+                               div(class="step-num", "01"),
+                               div(class="step-text", tags$strong("Select a country"), " — the maps show all five countries
+              simultaneously at zoom 5; pan and zoom into your region of interest.")
+                           ),
+                           div(class="step-row",
+                               div(class="step-num", "02"),
+                               div(class="step-text", tags$strong("Adjust barrier scores"), " — use the dropdowns in the
+              Tab 1 sidebar to reclassify land cover types for your context. The map updates live.")
+                           ),
+                           div(class="step-row",
+                               div(class="step-num", "03"),
+                               div(class="step-text", tags$strong("Draw a polygon"), " — use the draw tool (pentagon icon)
+              on either map to outline your area of interest. Summary statistics appear in the sidebar.")
+                           ),
+                           div(class="step-row",
+                               div(class="step-num", "04"),
+                               div(class="step-text", tags$strong("Download stats"), " — click ", tags$em("Download polygon
+              stats (.csv)"), " to export area (ha) and percentage by land cover class for your polygon.")
+                           ),
+                           div(class="step-row",
+                               div(class="step-num", "05"),
+                               div(class="step-text", tags$strong("Check the Statistics tab"), " — see full land cover
+              breakdowns by country for the entire 5km coastal buffer.")
+                           ),
+                           
+                           tags$h3("Data sources"),
+                           div(class="cite",
+                               div("ESA WorldCover 2021 v200 (10m) · ", tags$a(href="https://worldcover2021.esa.int","worldcover2021.esa.int")),
+                               div("Global Mangrove Watch v3.0 (2020) · ", tags$a(href="https://www.jaxa.jp/projects/sat/alos2/","JAXA / Aberystwyth University")),
+                               div("SRTM 30m Digital Elevation Model · NASA / USGS"),
+                               div("Coastal buffer and slope composite processed in Google Earth Engine · aggregated to ~500m for display")
+                           ),
+                           
+                           tags$h3("Known limitations"),
+                           p("Grassland (ESA class 30) is classified as Medium barrier by default but may include cleared
+          cattle pasture, which is a de-facto High barrier. A Human Modification Index overlay to
+          distinguish natural grassland from agricultural conversion is planned."),
+                           p("The 5km buffer is a conservative inland distance. Mangrove migration potential also depends
+          on elevation gradients, soil salinity and freshwater inflow, which are not yet included."),
+                           p("Annotation polygons drawn on the map persist for the current server session only and reset
+          on redeployment."),
+                           
+                           div(class="status-bar",
+                               div(class="status-dot"),
+                               div(style="font-size:11px;color:#7a9a7a;font-family:'DM Mono',monospace",
+                                   "Work in progress · Conservation International SB5 · October 2026")
+                           )
+                       )
+              ),
+              
+              # ── Tab 1: Barrier Map (land cover + slope) ───────────────────────────────
+              tabPanel("Barrier Map",
                        div(style="position:relative;",
                            div(class="sidebar-panel",
+                               
                                div(class="section-label", "Legend"),
                                div(class="legend-item", div(class="legend-dot",style="background:#166534"), "Mangroves (GMW 2020)"),
                                div(class="legend-item", div(class="legend-dot",style="background:#4ade80"), "Low barrier"),
                                div(class="legend-item", div(class="legend-dot",style="background:#facc15"), "Medium barrier"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#f87171"), "High barrier"),
+                               div(class="legend-item", div(class="legend-dot",style="background:#f87171"), "High barrier (incl. slope >5°)"),
                                
-                               div(class="section-label",style="margin-top:16px", "Reclassify Land Cover"),
+                               div(class="section-label", style="margin-top:16px", "Reclassify land cover"),
                                p(style="font-size:10px;color:#7a9a7a;margin-bottom:10px;line-height:1.5",
-                                 "Adjust barrier scores per class. Map updates on change."),
+                                 "Adjust barrier scores per class. Slope >5° is always High. Map updates live."),
                                
                                lapply(names(LC_CLASSES), function(code) {
                                  div(class="class-row",
@@ -208,41 +447,16 @@ ui <- fluidPage(
                                  )
                                }),
                                
-                               actionButton("reset_btn","Reset to defaults",class="reset-btn"),
+                               actionButton("reset_btn", "Reset to defaults", class="reset-btn"),
                                
-                               div(class="section-label",style="margin-top:16px", "Draw Annotations"),
-                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
-                                 "Use the toolbar on the map to draw polygons or rectangles marking areas of interest. Coordinates print to the R console.")
-                           ),
-                           div(class="map-panel",
-                               leafletOutput("map_lc", height="calc(100vh - 90px)")
-                           )
-                       )
-              ),
-              
-              # ── Tab 2: Slope ──
-              tabPanel("5km + Slope",
-                       div(style="position:relative;",
-                           div(class="sidebar-panel",
-                               div(class="section-label","Legend"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#166534"), "Mangroves (GMW 2020)"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#4ade80"), "Low barrier"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#facc15"), "Medium barrier"),
-                               div(class="legend-item", div(class="legend-dot",style="background:#f87171"), "High barrier (incl. steep terrain)"),
+                               div(class="section-label", style="margin-top:16px", "Draw & Export"),
+                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5;margin-bottom:8px",
+                                 "Draw a polygon to see land cover breakdown for that area."),
                                
-                               div(class="section-label",style="margin-top:16px","Slope Threshold"),
-                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5;margin-bottom:6px",
-                                 "Baked into tif at 5°. To change, update SLOPE_THRESHOLD in Colab Step 8 and re-export."),
-                               div(style="font-family:'DM Mono',monospace;font-size:12px;color:#4ade80;margin-bottom:10px",
-                                   "Current: 5°"),
+                               uiOutput("poly_stats_slope"),
                                
-                               div(class="section-label",style="margin-top:16px","Draw Annotations"),
-                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
-                                 "Use the toolbar on the map to draw polygons or rectangles marking areas of interest."),
-                               
-                               div(class="section-label",style="margin-top:16px","Note"),
-                               p(style="font-size:10px;color:#7a9a7a;line-height:1.5",
-                                 "Pre-computed slope + land cover layer. Use Tab 1 dropdowns to explore land cover reclassification.")
+                               downloadButton("dl_poly_slope", "Download polygon stats (.csv)",
+                                              class="dl-btn", style="margin-top:8px")
                            ),
                            div(class="map-panel",
                                leafletOutput("map_slope", height="calc(100vh - 90px)")
@@ -250,26 +464,22 @@ ui <- fluidPage(
                        )
               ),
               
-              # ── Tab 3: Statistics ──
+              # ── Tab 3: Statistics ─────────────────────────────────────────────────────
               tabPanel("Statistics",
                        div(class="stats-wrap",
                            h2(style="font-size:16px;font-weight:600;color:#4ade80;margin-bottom:4px",
-                              "Land Cover Statistics — 5km Inland Buffer"),
+                              "Land Cover Statistics — 5km Coastal Buffer"),
                            p(style="font-size:12px;color:#7a9a7a;font-family:'DM Mono',monospace;margin-bottom:16px",
-                             "Pixel counts from raw WorldCover classes · 100m resolution · Pacific coast mangroves only"),
-                           
+                             "Pixel counts from raw WorldCover classes · ~500m resolution after aggregation · Pacific coast only"),
                            div(class="note-box",
                                tags$strong("How to use:"),
-                               " Section 1 shows raw land cover in the buffer — what's driving the barrier scores.
-            Section 2 shows the barrier summary using the current Tab 1 classification.
-            Change dropdowns in Tab 1 and return here to see updated totals."
+                               " These totals cover the full 5km buffer per country. For site-specific stats,
+            draw a polygon on the Barrier Map tab and download the CSV from the sidebar."
                            ),
-                           
                            uiOutput("stats_cards"),
-                           
                            div(class="note-box",
                                tags$strong("Known limitation:"),
-                               " Grassland (#30) classified as Medium barrier — may include cleared cattle pasture (High barrier).
+                               " Grassland (#30) = Medium barrier — may include cleared cattle pasture (High).
             Human Modification Index integration pending."
                            )
                        )
@@ -277,65 +487,9 @@ ui <- fluidPage(
   )
 )
 
-# ── 5. Server ─────────────────────────────────────────────────────────────────
+# ── 6. Server ─────────────────────────────────────────────────────────────────
 
 server <- function(input, output, session) {
-  
-  # ── Annotation persistence ──────────────────────────────────────────────────
-  ANNOTATIONS_FILE <- "input/annotations.csv"
-  
-  load_annotations <- function() {
-    if (file.exists(ANNOTATIONS_FILE)) {
-      read.csv(ANNOTATIONS_FILE, stringsAsFactors=FALSE)
-    } else {
-      data.frame(map=character(), type=character(), coords_json=character(),
-                 timestamp=character(), stringsAsFactors=FALSE)
-    }
-  }
-  
-  save_annotation <- function(map_id, type, coords) {
-    ann <- load_annotations()
-    new_row <- data.frame(
-      map         = map_id,
-      type        = type,
-      coords_json = jsonlite::toJSON(coords),
-      timestamp   = as.character(Sys.time()),
-      stringsAsFactors = FALSE
-    )
-    write.csv(rbind(ann, new_row), ANNOTATIONS_FILE, row.names=FALSE)
-  }
-  
-  draw_saved_annotations <- function(proxy, map_id) {
-    ann <- load_annotations()
-    ann <- ann[ann$map == map_id, ]
-    if (nrow(ann) == 0) return()
-    for (i in seq_len(nrow(ann))) {
-      coords <- jsonlite::fromJSON(ann$coords_json[i])
-      tryCatch({
-        if (ann$type[i] %in% c("Polygon", "Rectangle")) {
-          ring <- coords[[1]]
-          lngs <- sapply(ring, `[[`, 1)
-          lats <- sapply(ring, `[[`, 2)
-          proxy %>% addPolygons(
-            lng         = lngs,
-            lat         = lats,
-            group       = "drawn",
-            color       = "#facc15",
-            weight      = 2,
-            fillOpacity = 0.1,
-            layerId     = paste0("saved_", map_id, "_", i)
-          )
-        } else if (ann$type[i] == "Point") {
-          proxy %>% addMarkers(
-            lng     = coords[[1]],
-            lat     = coords[[2]],
-            group   = "drawn",
-            layerId = paste0("saved_", map_id, "_", i)
-          )
-        }
-      }, error = function(e) NULL)
-    }
-  }
   
   # Current classification from dropdowns
   current_cls <- reactive({
@@ -347,6 +501,12 @@ server <- function(input, output, session) {
     cls
   })
   
+  # Debounced classification — waits 600ms after last dropdown change before firing
+  current_cls_d <- debounce(current_cls, 600)
+  
+  # Cache key for current classification — only redraws when dropdowns actually change
+  cls_key <- reactive({ paste(current_cls_d(), collapse="-") })
+  
   # Reset button
   observeEvent(input$reset_btn, {
     for (code in names(LC_CLASSES)) {
@@ -354,151 +514,128 @@ server <- function(input, output, session) {
     }
   })
   
-  # ── Map 1: Land Cover ──
-  output$map_lc <- renderLeaflet({
-    leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
-      addTiles() %>%
-      setView(lng=-80, lat=4, zoom=5) %>%
-      addDrawToolbar(
-        targetGroup        = "drawn",
-        polylineOptions    = FALSE,
-        circleOptions      = FALSE,
-        circleMarkerOptions = FALSE,
-        polygonOptions     = drawPolygonOptions(),
-        rectangleOptions   = drawRectangleOptions(),
-        markerOptions      = drawMarkerOptions(),
-        editOptions        = editToolbarOptions(selectedPathOptions = selectedPathOptions())
-      ) %>%
-      addLayersControl(
-        overlayGroups = "drawn",
-        options       = layersControlOptions(collapsed = FALSE)
-      )
-  })
+  # Reactive: last drawn polygon coords_json
+  last_poly_slope <- reactiveVal(NULL)
   
-  observe({
-    cls   <- current_cls()
-    proxy <- leafletProxy("map_lc")
-    proxy %>% clearImages() %>% clearControls()
-    
-    # Barrier layer
-    for (country in countries) {
-      r_cls <- reclassify_raster(raw_rasters[[country]], cls)
-      proxy %>% addRasterImage(
-        x       = r_cls,
-        colors  = barrier_pal,
-        opacity = 0.8,
-        layerId = paste0("lc_",country)
-      )
-    }
-    
-    # Mangrove layer on top
-    for (country in countries) {
-      proxy %>% addRasterImage(
-        x       = mangrove_rasters[[country]],
-        colors  = mangrove_pal,
-        opacity = 1,
-        layerId = paste0("mang_",country)
-      )
-    }
-    
-    proxy %>% addLegend(
-      position = "bottomright",
-      colors   = c("#166534","#4ade80","#facc15","#f87171"),
-      labels   = c("Mangroves","Low barrier","Medium barrier","High barrier"),
-      title    = "Migration Barrier",
-      opacity  = 0.9
-    )
-    draw_saved_annotations(proxy, "map_lc")
-  })
-  
-  # Save drawn shapes on map 1
-  observeEvent(input$map_lc_draw_new_feature, {
-    feature <- input$map_lc_draw_new_feature
-    save_annotation("map_lc", feature$geometry$type, feature$geometry$coordinates)
-    cat("Annotation saved — LC map:", feature$geometry$type, "\n")
-  })
-  
-  observeEvent(input$map_lc_draw_deleted_features, {
-    cat("Shape deleted from LC map (not removed from saved file — clear annotations.csv to reset)\n")
-  })
-  
-  # ── Map 2: Slope ──
+  # ── Barrier Map (slope composite) ───────────────────────────────────────────
   output$map_slope <- renderLeaflet({
     m <- leaflet(options=leafletOptions(zoomControl=TRUE)) %>%
-      addTiles() %>%
+      addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
       setView(lng=-80, lat=4, zoom=5) %>%
       addDrawToolbar(
-        targetGroup        = "drawn",
-        polylineOptions    = FALSE,
-        circleOptions      = FALSE,
+        targetGroup         = "drawn",
+        polylineOptions     = FALSE,
+        circleOptions       = FALSE,
         circleMarkerOptions = FALSE,
-        polygonOptions     = drawPolygonOptions(),
-        rectangleOptions   = drawRectangleOptions(),
-        markerOptions      = drawMarkerOptions(),
-        editOptions        = editToolbarOptions(selectedPathOptions = selectedPathOptions())
+        rectangleOptions    = FALSE,
+        markerOptions       = FALSE,
+        polygonOptions      = drawPolygonOptions(
+          shapeOptions = drawShapeOptions(color="#facc15", fillOpacity=0.1)
+        ),
+        editOptions = editToolbarOptions(selectedPathOptions = selectedPathOptions())
       ) %>%
       addLayersControl(
         overlayGroups = "drawn",
-        options       = layersControlOptions(collapsed = FALSE)
+        options       = layersControlOptions(collapsed=FALSE)
       )
     
-    # Barrier layer
-    for (country in countries) {
-      m <- m %>% addRasterImage(
-        x       = slope_rasters_rl[[country]],
-        colors  = barrier_pal,
-        opacity = 0.8,
-        layerId = paste0("slope_",country)
-      )
-    }
-    
-    # Mangrove layer on top
-    for (country in countries) {
-      m <- m %>% addRasterImage(
-        x       = mangrove_rasters[[country]],
-        colors  = mangrove_pal,
-        opacity = 1,
-        layerId = paste0("mang_slope_",country)
-      )
-    }
-    
+    m <- m %>% addRasterImage(slope_rl,    colors=barrier_pal,  opacity=0.8, layerId="slope_mosaic")
+    m <- m %>% addRasterImage(mangrove_rl, colors=mangrove_pal, opacity=1,   layerId="mang_mosaic", maxBytes=256*1024*1024)
     m %>% addLegend(
       position = "bottomright",
       colors   = c("#166534","#4ade80","#facc15","#f87171"),
       labels   = c("Mangroves","Low barrier","Medium barrier","High barrier (incl. slope)"),
-      title    = "Migration Barrier",
-      opacity  = 0.9
+      title    = "Migration Barrier", opacity=0.9
     )
   })
   
-  # Save drawn shapes on map 2
   observeEvent(input$map_slope_draw_new_feature, {
-    feature <- input$map_slope_draw_new_feature
-    save_annotation("map_slope", feature$geometry$type, feature$geometry$coordinates)
-    cat("Annotation saved — slope map:", feature$geometry$type, "\n")
-  })
-  
-  observeEvent(input$map_slope_draw_deleted_features, {
-    cat("Shape deleted from slope map (not removed from saved file — clear annotations.csv to reset)\n")
-  })
-  
-  # Re-draw saved slope annotations once map tab is first visited
-  slope_annotations_loaded <- reactiveVal(FALSE)
-  observeEvent(input$main_tabs, {
-    if (input$main_tabs == "5km + Slope" && !slope_annotations_loaded()) {
-      slope_annotations_loaded(TRUE)
-      draw_saved_annotations(leafletProxy("map_slope"), "map_slope")
+    f <- input$map_slope_draw_new_feature
+    if (f$geometry$type == "Polygon") {
+      last_poly_slope(jsonlite::toJSON(f$geometry$coordinates))
+      save_annotation("map_slope", "Polygon", f$geometry$coordinates)
     }
   })
   
-  # ── Stats ──
+  observeEvent(input$map_slope_draw_deleted_features, {
+    last_poly_slope(NULL)
+  })
+  
+  # Polygon stats panel — land cover breakdown with current classification
+  output$poly_stats_slope <- renderUI({
+    coords_json <- last_poly_slope()
+    if (is.null(coords_json)) {
+      return(p(style="font-size:10px;color:#7a9a7a;font-style:italic",
+               "No polygon drawn yet."))
+    }
+    cls      <- current_cls_d()
+    df       <- extract_polygon_stats(raw_mosaic, coords_json, cls)
+    mang_ha  <- extract_mangrove_ha(coords_json)
+    if (is.null(df) || nrow(df) == 0) {
+      return(p(style="font-size:10px;color:#7a9a7a", "No barrier pixels in polygon."))
+    }
+    div(class="poly-stats",
+        p(style="font-size:10px;color:#4ade80;margin-bottom:6px;font-weight:600",
+          "Land cover inside polygon:"),
+        tags$table(class="stats-tbl",
+                   tags$thead(tags$tr(tags$th("Class"), tags$th("Area (ha)"), tags$th("Barrier"))),
+                   tags$tbody(
+                     lapply(seq_len(nrow(df)), function(i) {
+                       row   <- df[i,]
+                       color <- BARRIER_COLORS[as.character(row$score)]
+                       if (is.na(color)) color <- "#7a9a7a"
+                       tags$tr(
+                         tags$td(row$name),
+                         tags$td(style="font-family:'DM Mono',monospace", format(row$area_ha, big.mark=",")),
+                         tags$td(style=paste0("color:",color), row$barrier)
+                       )
+                     }),
+                     if (!is.na(mang_ha) && mang_ha > 0)
+                       tags$tr(
+                         tags$td(style="color:#166534", "Mangrove (GMW 2020)"),
+                         tags$td(style="font-family:'DM Mono',monospace", format(mang_ha, big.mark=",")),
+                         tags$td(style="color:#166534", "—")
+                       )
+                   )
+        )
+    )
+  })
+  
+  # Download polygon stats — land cover breakdown
+  output$dl_poly_slope <- downloadHandler(
+    filename = function() paste0("polygon_stats_", format(Sys.time(),"%Y%m%d_%H%M"), ".csv"),
+    content  = function(file) {
+      coords_json <- last_poly_slope()
+      if (is.null(coords_json)) {
+        write.csv(data.frame(note="No polygon drawn"), file, row.names=FALSE)
+        return()
+      }
+      cls     <- current_cls_d()
+      results <- extract_polygon_stats(raw_mosaic, coords_json, cls)
+      if (is.null(results) || nrow(results) == 0) {
+        write.csv(data.frame(note="No barrier pixels found in polygon"), file, row.names=FALSE)
+      } else {
+        write.csv(results[, c("name","area_ha","pct","barrier")], file, row.names=FALSE)
+      }
+    }
+  )
+  
+  # ── Tab 3: Country-level stats ───────────────────────────────────────────────
   output$stats_cards <- renderUI({
-    cls <- current_cls()
+    cls <- current_cls_d()
+    # Total regional mangrove for % calculation
+    total_mang_ha <- round(sum(values(mangrove_mosaic) == 1, na.rm=TRUE) * PIXEL_AREA_HA)
     
-    cards <- lapply(countries, function(country) {
-      r    <- raw_rasters[[country]]
-      vals <- as.vector(values(r))
-      vals <- vals[!is.na(vals) & vals != 0]
+    cards <- lapply(countries, function(ctry) {
+      poly  <- country_polys[[ctry]]
+      r     <- mask(crop(raw_mosaic,      poly), poly)
+      vals  <- as.vector(values(r))
+      vals  <- vals[!is.na(vals) & vals != 0]
+      
+      mang_r      <- mask(crop(mangrove_mosaic, poly), poly)
+      mang_pixels <- sum(values(mang_r) == 1, na.rm=TRUE)
+      mang_ha     <- round(mang_pixels * PIXEL_AREA_HA)
+      mang_pct    <- if (total_mang_ha > 0) round(mang_ha / total_mang_ha * 100, 1) else 0
       
       lc_counts <- as.data.frame(table(vals)) %>%
         rename(code=vals, pixels=Freq) %>%
@@ -517,7 +654,6 @@ server <- function(input, output, session) {
         filter(!is.na(score) & score > 0) %>%
         group_by(score) %>%
         summarise(area_ha=sum(area_ha), .groups="drop")
-      
       total_barrier <- sum(barrier_counts$area_ha)
       
       lc_rows <- lapply(seq_len(nrow(lc_counts)), function(i) {
@@ -546,28 +682,31 @@ server <- function(input, output, session) {
       })
       
       div(class="stats-card",
-          h4("Land Cover Breakdown",
-             span(class="country-tag", country_labels[country])),
+          h4("Land Cover Breakdown", span(class="country-tag", country_labels[ctry])),
           tags$table(class="stats-tbl",
                      tags$thead(tags$tr(tags$th("Class"),tags$th("Area (ha)"),tags$th("%"))),
-                     tags$tbody(lc_rows)
-          ),
+                     tags$tbody(lc_rows)),
           div(class="divider"),
           h4(style="margin-bottom:10px","Barrier Summary",
              span(style="font-size:9px;color:#7a9a7a;font-weight:400;margin-left:6px",
                   "(updates with Tab 1 dropdowns)")),
           tags$table(class="stats-tbl",
                      tags$thead(tags$tr(tags$th("Barrier"),tags$th("Area (ha)"),tags$th("%"))),
-                     tags$tbody(barrier_rows)
-          )
+                     tags$tbody(barrier_rows)),
+          div(class="divider"),
+          h4(style="margin-bottom:10px","Mangrove Extent"),
+          tags$table(class="stats-tbl",
+                     tags$tbody(tags$tr(
+                       tags$td(style="color:#166534", "Mangrove (GMW 2020)"),
+                       tags$td(style="font-family:'DM Mono',monospace", format(mang_ha, big.mark=",")),
+                       tags$td(style="font-family:'DM Mono',monospace;color:#7a9a7a", paste0(mang_pct, "% of region"))
+                     )))
       )
     })
-    
     div(class="stats-grid", cards)
   })
 }
 
-# ── 6. Run ────────────────────────────────────────────────────────────────────
+# ── 7. Run ────────────────────────────────────────────────────────────────────
 
 shinyApp(ui, server)
-
