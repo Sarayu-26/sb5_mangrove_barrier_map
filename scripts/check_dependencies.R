@@ -1,0 +1,5 @@
+packages <- c("shiny","leaflet","leaflet.extras","terra","sf","jsonlite")
+if ("--prepare" %in% commandArgs(TRUE)) packages <- c(packages,"rnaturalearth","rnaturalearthdata")
+ok <- vapply(packages,requireNamespace,logical(1),quietly=TRUE)
+print(data.frame(package=packages,available=ok),row.names=FALSE)
+if (!all(ok)) quit(status=1)

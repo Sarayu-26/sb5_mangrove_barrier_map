@@ -1,5 +1,25 @@
 # SB5 Mangrove Migration Barrier Map
 
+## Current app workflow (November 2026)
+
+The app now uses committed compact products in `data/prepared/`; it does not mosaic the original rasters at startup. Install runtime packages with:
+
+```r
+install.packages(c("shiny", "leaflet", "leaflet.extras", "terra", "sf", "jsonlite"))
+```
+
+From the repository root, run:
+
+```bash
+Rscript --vanilla -e 'shiny::runApp(".", host="127.0.0.1", port=3838, launch.browser=TRUE)'
+```
+
+The Barrier Map offers adjustable **land-cover-only** classification and a separate **fixed slope reference**. Country and polygon statistics use cell areas from the supplied approximately 100 m grid, with cell-center inclusion. Mangroves are WorldCover class 95. Display cells are capped in number and are not used to calculate areas. Drawings remain session-local.
+
+See [runtime and preparation notes](docs/runtime-and-preparation.md) for rebuilding products, checks, and publishing. The research background below describes the upstream project; its older country-file layout and tab descriptions predate this refactor.
+
+---
+
 **Status: Work in Progress**  
 **Target: Prelim WIP June 2026 Workshop
 **Team: Conservation International SB5 / UCSB Bren School**

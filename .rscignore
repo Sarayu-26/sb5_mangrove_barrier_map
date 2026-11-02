@@ -1,0 +1,7 @@
+.git/
+.Rproj.user/
+input/
+scripts/
+tests/
+docs/
+*.Rproj

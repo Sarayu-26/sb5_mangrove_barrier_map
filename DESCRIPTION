@@ -1,0 +1,18 @@
+Package: sb5.mangrove.barrier.map
+Type: Shiny
+Title: SB5 Mangrove Migration Barrier Map
+Version: 0.1.0
+Description: Interactive land-cover barrier scenarios and a fixed terrain reference
+    for the Eastern Tropical Pacific, using prepared sparse spatial products.
+Encoding: UTF-8
+Imports:
+    shiny,
+    leaflet,
+    leaflet.extras,
+    terra,
+    sf,
+    jsonlite
+Suggests:
+    rnaturalearth,
+    rnaturalearthdata,
+    rsconnect
