@@ -1958,7 +1958,7 @@
   },
   "files": {
     "app.R": {
-      "checksum": "fb2661f1a54c80e35b1ddd043e5a19ec"
+      "checksum": "d9a04ec93d9254e81fcca5248a166161"
     },
     "data/prepared/cells-0001.rds": {
       "checksum": "339c732f3f0f85b0851f7c09e49b9fca"
@@ -2669,7 +2669,7 @@
       "checksum": "afab194b54fb276fd8f038d6a1065f23"
     },
     "R/map_view.R": {
-      "checksum": "bc87a63d0a4e7b11c41467abd2738218"
+      "checksum": "369774a0df1f7bd26f67a0b342f807b1"
     }
   },
   "users": null

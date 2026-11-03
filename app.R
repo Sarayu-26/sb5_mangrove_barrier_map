@@ -13,6 +13,7 @@ source("R/map_view.R", local=TRUE)
 source("R/server.R", local=TRUE)
 
 ui <- fluidPage(
+  title="Mangrove Migration Mapper",
   tags$head(tags$style(HTML("
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
     body { font-family:'DM Sans',sans-serif; background:#0e1a14; color:#e2ead4; margin:0; padding:0; }
@@ -120,7 +121,7 @@ ui <- fluidPage(
   
   div(class="header-bar",
       div(
-        h1("Mangrove Migration Barriers — Eastern Tropical Pacific"),
+        h1("Mangrove Migration Mapper"),
         div(class="subtitle",
             "Costa Rica · Panama · Colombia · Ecuador · Peru  |  5km coastal buffer · ESA WorldCover 2021 · GMW v3 2020")
       ),
@@ -133,7 +134,7 @@ ui <- fluidPage(
               tabPanel("About",
                        div(class="about-wrap",
                            
-                           h2("Mangrove Migration Barriers — Eastern Tropical Pacific"),
+                           h2("Mangrove Migration Mapper"),
                            p(style="font-family:'DM Mono',monospace;font-size:11px;color:#7a9a7a;margin-bottom:24px",
                              "Conservation International · SB5 Climate Adaptation · October 2026"),
                            

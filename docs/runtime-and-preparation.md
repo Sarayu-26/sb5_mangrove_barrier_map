@@ -45,3 +45,5 @@ The full manifest generator encountered unavailable CRAN metadata in this enviro
 ## Study-area navigation
 
 Map bounds use the prepared populated-cell extent plus the occupied GMW overview cells west of 88°W (Galápagos in this regional bundle), with a 0.35° margin. The broader GMW tile envelope does not determine the view. This retains northern study cells regardless of country borders. GMW display is cropped to this study window; source files and statistics are unchanged. Leaflet fits the window on opening, restricts panning, and recalculates its minimum zoom for the viewport size so users cannot zoom out to a global view. Browser verification confirmed zoom-in and return to the disabled zoom-out limit; Shiny tests verify bounds and Galápagos rendering.
+
+The fitted overview is centered and locked against panning. Zooming in enables dragging within the study bounds; returning to the minimum zoom restores the centered overview. The application title is Mangrove Migration Mapper.
