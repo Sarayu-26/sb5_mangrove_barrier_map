@@ -31,9 +31,9 @@ ui <- fluidPage(
       background:#1f3328 !important; }
     .tab-content { background:#0e1a14; }
     .sidebar-panel { background:#162019; border-right:1px solid #2a3d2e;
-                     padding:14px; height:calc(100vh - 90px); overflow-y:auto;
+                     padding:14px; height:100%; overflow-y:auto;
                      width:260px; float:left; }
-    .map-panel { margin-left:260px; height:calc(100vh - 90px); }
+    .map-panel { margin-left:260px; height:100%; }
     .section-label { font-size:10px; font-weight:600; letter-spacing:0.12em;
                      text-transform:uppercase; color:#7a9a7a; margin-bottom:10px; margin-top:14px; }
     .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:12px; }
@@ -54,7 +54,7 @@ ui <- fluidPage(
     .dl-btn:disabled { opacity:0.35; cursor:default; }
     .poly-stats { background:#1a2b1e; border:1px solid #2a3d2e; border-radius:5px;
                   padding:10px; margin-top:8px; font-size:11px; }
-    .stats-wrap { padding:24px; overflow-y:auto; height:calc(100vh - 90px); }
+    .stats-wrap { padding:24px; overflow-y:auto; height:100%; }
     .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
     .stats-card { background:#162019; border:1px solid #2a3d2e; border-radius:7px; padding:14px; }
     .stats-card h4 { font-size:10px; font-weight:600; letter-spacing:0.1em;
@@ -74,7 +74,7 @@ ui <- fluidPage(
     .divider { border-top:1px solid #2a3d2e; margin:12px 0; }
     .leaflet-container { background:#0e1a14 !important; }
     .form-group { margin-bottom:0 !important; }
-    .about-wrap { padding:32px 48px; max-width:860px; overflow-y:auto; height:calc(100vh - 90px); }
+    .about-wrap { padding:32px 48px; max-width:860px; overflow-y:auto; height:100%; }
     .about-wrap h2 { font-size:22px; font-weight:600; color:#4ade80; margin-bottom:4px; }
     .about-wrap h3 { font-size:12px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase;
                      color:#7a9a7a; margin-top:28px; margin-bottom:10px; border-bottom:1px solid #2a3d2e;
@@ -97,10 +97,19 @@ ui <- fluidPage(
     .status-bar { display:flex; gap:10px; align-items:center; margin-top:28px;
                   padding:10px 14px; background:#162019; border:1px solid #2a3d2e; border-radius:6px; }
     @media (max-width: 700px) { .sidebar-panel { width:100%; float:none; height:auto; max-height:40vh; } .map-panel { margin-left:0; } .stats-grid { grid-template-columns:1fr; } .about-wrap { padding:20px; } }
-    .project-credit { text-align:center; color:#a8bda8; font-size:13px; line-height:1.8; margin:16px 0 12px; }
+    body > .container-fluid { height:100vh; display:flex; flex-direction:column; }
+    .header-bar, .project-footer { flex-shrink:0; }
+    .tabbable { flex:1; min-height:0; display:flex; flex-direction:column; }
+    .tab-content { flex:1; min-height:0; overflow:auto; }
+    .tab-content > .tab-pane { height:100%; }
+    .project-footer { clear:both; padding:8px 14px; background:#162019; border-top:1px solid #2a3d2e; }
+    .project-footer a { text-decoration:none; }
+    .project-footer a:hover { text-decoration:underline; }
+    @media (max-width:700px) { .map-panel { height:60vh; } }
+    .project-credit { text-align:center; color:#a8bda8; font-size:13px; line-height:1.8; margin:0 0 8px; }
     .project-credit a { color:#4ade80; font-weight:600; white-space:nowrap; }
     .credit-divider { color:#7a9a7a; padding:0 9px; }
-    .project-badges { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:24px; }
+    .project-badges { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:0; }
     .project-badge { display:inline-flex; overflow:hidden; border-radius:6px; font-size:11px; font-weight:600; line-height:1.5; }
     .project-badge-label { background:#2a3d2e; color:#e2ead4; padding:6px 9px; }
     .project-badge-value { background:#365b43; color:#fff; padding:6px 9px; }
@@ -127,21 +136,6 @@ ui <- fluidPage(
                            p(style="font-family:'DM Mono',monospace;font-size:11px;color:#7a9a7a;margin-bottom:24px",
                              "Conservation International · SB5 Climate Adaptation · October 2026"),
                            
-                           div(class="project-credit",
-                               "Created by ", tags$strong("Sarayu Ramnath"),
-                               span(class="credit-divider", "|"),
-                               tags$a(href="https://github.com/Sarayu-26/sb5_mangrove_barrier_map", target="_blank", rel="noopener noreferrer", "GitHub"),
-                               span(class="credit-divider", "|"),
-                               tags$a(href="https://sarayu-26.github.io/", target="_blank", rel="noopener noreferrer", "Personal website")
-                           ),
-                           div(class="project-badges",
-                               span(class="project-badge", span(class="project-badge-label", "app"), span(class="project-badge-value beta", "beta")),
-                               span(class="project-badge", span(class="project-badge-label", "countries"), span(class="project-badge-value", length(COUNTRIES))),
-                               span(class="project-badge", span(class="project-badge-label", "coastal buffer"), span(class="project-badge-value", "5 km")),
-                               span(class="project-badge", span(class="project-badge-label", "land cover"), span(class="project-badge-value", "WorldCover 2021")),
-                               span(class="project-badge", span(class="project-badge-label", "mangrove extent"), span(class="project-badge-value", "GMW 2020"))
-                           ),
-
                            tags$h3("What this tool shows"),
                            p("Mangroves are highly productive coastal ecosystems that provide storm protection, carbon storage,
           and fisheries habitat. Under sea-level rise, mangroves can survive by migrating landward — but only
@@ -228,7 +222,7 @@ ui <- fluidPage(
               
               # ── Tab 1: Barrier Map (land cover + slope) ───────────────────────────────
               tabPanel("Barrier Map",
-                       div(style="position:relative;",
+                       div(style="position:relative;height:100%;",
                            div(class="sidebar-panel",
                                
                                radioButtons("map_mode", "Map layer", choices=c("Adjustable land cover"="landcover", "Fixed slope reference"="slope"), selected="landcover"),
@@ -269,7 +263,7 @@ ui <- fluidPage(
                                               class="dl-btn", style="margin-top:8px")
                            ),
                            div(class="map-panel",
-                               leafletOutput("map_slope", height="calc(100vh - 90px)")
+                               leafletOutput("map_slope", height="100%")
                            )
                        )
               ),
@@ -294,6 +288,22 @@ ui <- fluidPage(
                            )
                        )
               )
+  ),
+  tags$footer(class="project-footer",
+div(class="project-credit",
+                               "Created by ", tags$strong("Sarayu Ramnath"),
+                               span(class="credit-divider", "|"),
+                               tags$a(href="https://github.com/Sarayu-26/sb5_mangrove_barrier_map", target="_blank", rel="noopener noreferrer", "GitHub"),
+                               span(class="credit-divider", "|"),
+                               tags$a(href="https://sarayu-26.github.io/", target="_blank", rel="noopener noreferrer", "Personal website")
+                           ),
+                           div(class="project-badges",
+                               span(class="project-badge", span(class="project-badge-label", "app"), span(class="project-badge-value beta", "beta")),
+                               span(class="project-badge", span(class="project-badge-label", "countries"), span(class="project-badge-value", length(COUNTRIES))),
+                               span(class="project-badge", span(class="project-badge-label", "coastal buffer"), span(class="project-badge-value", "5 km")),
+                               span(class="project-badge", span(class="project-badge-label", "land cover"), span(class="project-badge-value", "WorldCover 2021")),
+                               span(class="project-badge", span(class="project-badge-label", "mangrove extent"), span(class="project-badge-value", "GMW 2020"))
+                           )
   )
 )
 
