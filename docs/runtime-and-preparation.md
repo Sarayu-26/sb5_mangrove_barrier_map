@@ -41,3 +41,7 @@ Run `Rscript --vanilla tests/gmw.R`, the existing spatial/server tests, and then
 Validation of this experiment: spatial, GMW and Shiny test suites passed. Browser checks confirmed the overlay at Galápagos zoom, toggle-off revealing the land-cover footprint, and persistence when switching barrier modes. The prepared land-cover footprint starts at approximately 91°W; GMW includes mangroves west of that boundary. Bundled GMW rasters total approximately 13 MB. Local testing used a project-local `leaflet.extras` installation: `Rscript --vanilla -e '.libPaths(c(".Rlibrary",.libPaths())); shiny::runApp()'`.
 
 The full manifest generator encountered unavailable CRAN metadata in this environment. Since this change adds no package dependencies, the existing package records were retained and the manifest file list/checksums refreshed directly. Cloud deployment was not performed.
+
+## Study-area navigation
+
+Map bounds use the prepared populated-cell extent plus the occupied GMW overview cells west of 88°W (Galápagos in this regional bundle), with a 0.35° margin. The broader GMW tile envelope does not determine the view. This retains northern study cells regardless of country borders. GMW display is cropped to this study window; source files and statistics are unchanged. Leaflet fits the window on opening, restricts panning, and recalculates its minimum zoom for the viewport size so users cannot zoom out to a global view. Browser verification confirmed zoom-in and return to the disabled zoom-out limit; Shiny tests verify bounds and Galápagos rendering.

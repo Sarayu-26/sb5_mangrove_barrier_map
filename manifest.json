@@ -1958,7 +1958,7 @@
   },
   "files": {
     "app.R": {
-      "checksum": "d7efcd3b81af037b65d8db7cc3429564"
+      "checksum": "fb2661f1a54c80e35b1ddd043e5a19ec"
     },
     "data/prepared/cells-0001.rds": {
       "checksum": "339c732f3f0f85b0851f7c09e49b9fca"
@@ -2453,10 +2453,10 @@
       "checksum": "9c149f19702a80b501ba32e36fec4f18"
     },
     "DESCRIPTION": {
-      "checksum": "50031ec314631dfb35350b5161eaf81e"
+      "checksum": "c721941e8bf38f05ac00f88aa2aac7c5"
     },
     "R/server.R": {
-      "checksum": "c43a385d13462dcc1432946c88177763"
+      "checksum": "c453f9b1331df152c1797a604450bd99"
     },
     "R/spatial.R": {
       "checksum": "2ffe84ac5c174dee0aa0ee8c50a7c2f8"
@@ -2667,6 +2667,9 @@
     },
     "data/gmw/overview.tif": {
       "checksum": "afab194b54fb276fd8f038d6a1065f23"
+    },
+    "R/map_view.R": {
+      "checksum": "bc87a63d0a4e7b11c41467abd2738218"
     }
   },
   "users": null

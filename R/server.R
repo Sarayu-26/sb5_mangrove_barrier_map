@@ -1,4 +1,6 @@
 server <- function(input, output, session) {
+  study_bounds <- study_map_bounds(products,gmw)
+  study_gmw_overview <- terra::crop(gmw$overview,terra::ext(study_bounds),snap="in")
   classification <- reactive({
     cls <- DEFAULTS
     for (code in names(LC_CLASSES)) {
@@ -13,15 +15,18 @@ server <- function(input, output, session) {
   })
 
   output$map_slope <- renderLeaflet({
-    leaflet(options=leafletOptions(zoomControl=TRUE)) |>
+    leaflet(options=leafletOptions(zoomControl=TRUE,zoomSnap=0.1,
+                                    maxBoundsViscosity=1,worldCopyJump=FALSE)) |>
       addProviderTiles(providers$Esri.WorldGrayCanvas) |>
-      setView(lng=-80,lat=4,zoom=5) |>
+      fitBounds(study_bounds[1],study_bounds[3],study_bounds[2],study_bounds[4]) |>
       addDrawToolbar(targetGroup="drawn",polylineOptions=FALSE,circleOptions=FALSE,
                      circleMarkerOptions=FALSE,rectangleOptions=FALSE,markerOptions=FALSE,
                      polygonOptions=drawPolygonOptions(shapeOptions=drawShapeOptions(color="#facc15",fillOpacity=0.1)),
                      editOptions=editToolbarOptions()) |>
       addLegend(position="bottomright",colors=c("#166534",unname(BARRIER_COLORS)),
-                labels=c(GMW_LABEL,"Low","Medium","High"), title="Migration barriers")
+                labels=c(GMW_LABEL,"Low","Medium","High"), title="Migration barriers") |>
+      htmlwidgets::onRender(STUDY_VIEW_JS, data=list(
+        c(study_bounds[3],study_bounds[1]),c(study_bounds[4],study_bounds[2])))
   })
   viewport <- debounce(reactive(list(bounds=input$map_slope_bounds,zoom=input$map_slope_zoom)),500)
   display <- reactive({
@@ -48,10 +53,13 @@ server <- function(input, output, session) {
 
   gmw_display <- reactive({
     view <- viewport()
-    if (is.null(view$bounds) || is.null(view$zoom) || view$zoom<7) return(gmw$overview)
+    if (is.null(view$bounds) || is.null(view$zoom) || view$zoom<7) return(study_gmw_overview)
     b <- view$bounds
     bounds <- c(b$west,b$east,max(-85,b$south),min(85,b$north))
-    if (any(!is.finite(bounds)) || bounds[2]<=bounds[1] || bounds[4]<=bounds[3]) return(gmw$overview)
+    if (any(!is.finite(bounds)) || bounds[2]<=bounds[1] || bounds[4]<=bounds[3]) return(study_gmw_overview)
+    bounds <- c(max(bounds[1],study_bounds[1]),min(bounds[2],study_bounds[2]),
+                max(bounds[3],study_bounds[3]),min(bounds[4],study_bounds[4]))
+    if (bounds[2]<=bounds[1] || bounds[4]<=bounds[3]) return(study_gmw_overview)
     render_gmw(gmw,bounds)
   })
   observe({

@@ -7,6 +7,7 @@ Description: Interactive land-cover barrier scenarios and a fixed terrain refere
 Encoding: UTF-8
 Imports:
     shiny,
+    htmlwidgets,
     leaflet,
     leaflet.extras,
     terra,

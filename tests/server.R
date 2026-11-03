@@ -2,6 +2,7 @@ library(shiny)
 library(leaflet)
 library(leaflet.extras)
 source("R/spatial.R")
+source("R/map_view.R")
 source("R/server.R")
 source("R/gmw.R")
 gmw <- load_gmw()
@@ -13,6 +14,8 @@ d <- readRDS(file.path(products$root,products$index$blocks$file[1]))
 x <- d$x[1]; y <- d$y[1]; delta <- 0.002
 feature <- function(id) list(type="Feature",properties=list(`_leaflet_id`=id),geometry=list(type="Polygon",coordinates=list(list(c(x-delta,y-delta),c(x+delta,y-delta),c(x+delta,y+delta),c(x-delta,y+delta),c(x-delta,y-delta)))))
 shiny::testServer(server, {
+  stopifnot(study_bounds[1]< -91, study_bounds[4]>products$index$bounds[4],
+            study_bounds[2]< -74, study_bounds[3]> -7)
   session$setInputs(map_mode="landcover",show_gmw=TRUE)
   stopifnot(is.null(areas()))
   session$setInputs(map_slope_draw_new_feature=feature(1))

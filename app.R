@@ -9,6 +9,7 @@ country_labels <- COUNTRIES
 countries <- names(COUNTRIES)
 barrier_pal <- colorFactor(c("#4ade80", "#facc15", "#f87171"), domain=c(1,2,3), na.color="transparent")
 mangrove_pal <- colorFactor("#166534", domain=1, na.color="transparent")
+source("R/map_view.R", local=TRUE)
 source("R/server.R", local=TRUE)
 
 ui <- fluidPage(
@@ -173,7 +174,7 @@ ui <- fluidPage(
                            div(class="step-row",
                                div(class="step-num", "01"),
                                div(class="step-text", tags$strong("Explore the coast"), " — the maps show all five countries
-              simultaneously at zoom 5; pan and zoom into your region of interest.")
+              within the fitted study area, including the Galápagos; zoom in to explore.")
                            ),
                            div(class="step-row",
                                div(class="step-num", "02"),
